@@ -1,12 +1,12 @@
 # go-libraries
 
-The standards-lab organization's Go reference libraries. This is Priority 2 of the reference-architecture
-effort: a worked example of how to design, layer, and independently version shared libraries, built with
-the marathon workflow so the workflow itself is battle-tested in the process.
+The standards-lab organization's Go reference libraries. This is the library level of the organization's
+reference architecture: a worked example of how to design, layer, and independently version shared
+libraries, built with the marathon workflow so the workflow itself is battle-tested in the process.
 
 The libraries are the capability boundary. Each capability is an independently versioned Go module; the
-module is the unit of reuse. The standard first materializes here as code — the abstractions live in the
-libraries, and the reference architecture (Priority 3) consumes them.
+module is the unit of reuse. The standard first materializes here as code; the abstractions live in the
+libraries.
 
 ## What we're building toward
 
@@ -29,10 +29,13 @@ Broad and shallow; detail is added when a module is about to be built.
 - **database** — data access behind one interface, with SQL providers (postgres, sql server) as nested
   submodules.
 - **storage** — object storage behind one interface (minio / azurite ↔ s3 / azure blob).
-- **web** — the HTTP layer: RFC 9457 problem responses, middleware, the policy-enforcement point.
+- **web** — the HTTP layer: a stdlib `net/http` server, RFC 9457 problem responses, middleware,
+  liveness/readiness (`/healthz`, `/readyz`, where `/readyz` surfaces `core`'s hot-start lifecycle), and
+  the policy-enforcement point.
 
 The set is a candidate, not a commitment — see `concepts/module-set.md`. Each module is settled when it is
-built.
+built. Build order starts with `core`, then a minimal `web`; the remaining modules follow as they are
+reached.
 
 ## How this repository works
 

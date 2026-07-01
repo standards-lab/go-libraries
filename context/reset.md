@@ -1,25 +1,28 @@
-# reset · init
+# reset · library-level-web-baseline
 
 - **Status:** closeout
-- **Session type:** development
-- **Branch:** main
+- **Session type:** context
+- **Branch:** library-level-web-baseline
 
 ## Disposition
 
-- **Established:** the marathon-managed `go-libraries` repository — a public, multi-module Go monorepo for
-  the standards-lab reference libraries (Priority 2). Scaffolded the workspace skeleton (`go.work`,
-  `mise.toml`, matrix CI, the per-module release workflow, `.gitignore`, `README.md`) and the Claude
-  configuration (`CLAUDE.md`, `.claude/settings.json`, `.claude/marathon.toml`).
-- **Settled** (`design/`): `library-topology-and-naming` (a single Go monorepo; the module-path,
-  vendor-submodule, and tag conventions), `release-and-ci` (per-module prefix-tag releases, the matrix CI,
-  the `go.work`/`mise` workflow), and `conventions` (interface-in-root with vendor-in-submodule, explicit
-  registration, co-located black-box tests, doc.go ownership).
-- **Candidate** (`concepts/`): the module set to re-derive (`module-set`).
+- **Relabeled to the library level** (`context/README.md`, `CLAUDE.md`): this repository is the library
+  level of the organization's reference architecture, replacing the earlier "Priority 2" framing. The
+  context stays self-contained — it describes the libraries and their own boundaries, not the consumers
+  above them.
+- **`web` module** (`context/README.md`, `concepts/module-set.md`): the HTTP layer now names a stdlib
+  `net/http` server and liveness/readiness (`/healthz`, `/readyz`, where `/readyz` surfaces `core`'s
+  hot-start lifecycle) alongside RFC 9457 responses, middleware, and the enforcement point.
+- **Resolved the `web` split** (`concepts/module-set.md`): the `net/http` bootstrap, problem-response
+  scaffolding, middleware, and the probes are library-level; request routing and domain handlers belong to
+  the consuming service. Recorded the build order — `core`, then a minimal `web` — with the set growing one
+  module at a time as each pattern and integration is established.
 
 ## Next-focus
 
-Build the **`core`** foundation module — the Layered Composition Architecture lifecycle (cold start, hot
-start, graceful shutdown) and the three-phase configuration primitives that every other module builds on.
-Wire it in as the first module: add `core` to the `go.work` use-list and `mise`'s `GO_MODULES`, confirm the
-`ci.yml` matrix entry activates, and add `core/CHANGELOG.md` and `core/doc.go`. Start here next session
-with `marathon start`.
+Build the `core` foundation module — the Layered Composition Architecture lifecycle (cold start, hot start,
+graceful shutdown) and the three-phase configuration primitives that every other module builds on. Wire it
+in as the first module: add `core` to the `go.work` use-list and `mise`'s `GO_MODULES`, confirm the
+`ci.yml` matrix entry activates, and add `core/CHANGELOG.md` and `core/doc.go`. Then build the minimal
+`web` — the `net/http` server with `/healthz` and `/readyz` — as the smallest runnable HTTP surface. Start
+here next session with `marathon start`.
