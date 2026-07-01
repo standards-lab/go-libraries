@@ -1,9 +1,9 @@
 # go-libraries
 
 The standards-lab organization's Go reference libraries: a public, multi-module monorepo of layered,
-independently versioned capability libraries. This is Priority 2 of the reference-architecture effort —
-the worked example for how to design, layer, and release shared libraries. Managed with the marathon
-workflow; start from `context/README.md`.
+independently versioned capability libraries. This is the library level of the reference-architecture
+effort — the worked example for how to design, layer, and release shared libraries. Managed with the
+marathon workflow; start from `context/README.md`.
 
 ## Conventions are settled in the repository
 
