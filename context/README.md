@@ -33,7 +33,7 @@ Broad and shallow; detail is added when a module is about to be built.
   liveness/readiness (`/healthz`, `/readyz`, where `/readyz` surfaces `core`'s hot-start lifecycle), and
   the policy-enforcement point.
 
-The set is a candidate, not a commitment — see `concepts/module-set.md`. Each module is settled when it is
+The set is provisional, not a commitment — see `concepts/module-set.md`. Each module is settled when it is
 built. Build order starts with `core`, then a minimal `web`; the remaining modules follow as they are
 reached.
 

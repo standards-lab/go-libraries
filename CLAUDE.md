@@ -12,9 +12,10 @@ Keep them there; do not restate them here.
 
 ## Role boundary
 
-The developer owns the production Go source — they apply it and answer for it. The agent writes
-everything else: tests, godoc and `doc.go`, prose documentation, the files in `context/`, the
-implementation guide, and the reset file.
+go-libraries is a marathon **code** project (`.claude/marathon.toml` declares `kind = "code"`). The
+developer owns the production Go source — they apply it and answer for it. The agent writes everything
+else: tests, godoc and `doc.go`, prose documentation, the files in `context/`, the implementation guide,
+and the reset file.
 
 ## Repository specifics
 

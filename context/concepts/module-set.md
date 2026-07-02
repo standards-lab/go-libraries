@@ -1,6 +1,6 @@
-# Candidate module set
+# Module set
 
-The capability modules the repository is expected to grow, kept as a candidate until each is built and
+The capability modules the repository is expected to grow, kept provisional until each is built and
 settled. The set re-derives the `ref-go-libraries` baseline (core, auth, authz, database, web) rather than
 copying it forward, so the names and boundaries may change.
 

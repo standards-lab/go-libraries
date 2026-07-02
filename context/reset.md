@@ -1,7 +1,7 @@
 # reset · library-level-web-baseline
 
 - **Status:** closeout
-- **Session type:** context
+- **Session:** plan
 - **Branch:** library-level-web-baseline
 
 ## Disposition
