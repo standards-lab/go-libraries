@@ -1,20 +1,49 @@
 # Module conventions
 
-The patterns settled for this repository's modules.
+The patterns settled for this repository's libraries.
 
-## Interface in root, vendor in submodule
+## Interface in a base package, vendor in a sub-module
 
-A capability whose implementations carry heavy third-party dependencies defines its interface (and shared
-types and registry) at the module root, using the standard library only. Each concrete implementation
-lives in a nested submodule with its own `go.mod` that pins the vendor SDK, so a consumer that needs only
-the interface never pulls the SDKs. Example: the `auth` module root defines the authenticator interface;
-`auth/keycloak` and `auth/entra` are separate submodules pinning their respective SDKs.
+A capability defines its interface (and shared types) as a package in the base library, using near-stdlib
+dependencies only. Each concrete implementation whose weight comes from a third-party SDK lives in a
+nested sub-module with its own `go.mod` that pins that SDK, so a consumer that needs only the interface
+never pulls the SDKs. The `database` package defines the `database.DB` interface; `database/postgres` and
+`database/mssql` are separate sub-modules pinning their respective drivers. The `auth` package defines
+`Authenticator`/`TokenSource`; `auth/keycloak` and `auth/entra` are separate sub-modules.
 
-## Explicit registration, no init() side effects
+## Near-stdlib base, heavy dependencies isolated in providers
 
-Each implementation exposes a public `Register()` that registers its factory with the root module's
-registry. The application calls `Register()` explicitly at its composition root. Registration never
-happens as an `init()` side effect of importing a package.
+The base library may depend only on packages as idiomatic and stable as the standard library itself —
+`golang.org/x/…`, `google/uuid`, and the like. Heavy or vendor-specific dependencies — cloud SDKs,
+database drivers — never enter the base; they live only in provider sub-modules. This keeps the base
+effectively free to depend on: importing one capability package compiles no other capability and pulls no
+vendor SDK.
+
+## Providers selected by direct typed construction
+
+Each provider exposes a `Provider` constant and a typed constructor. The application selects a provider at
+its composition root with a typed switch over that constant and a direct import of the chosen provider —
+the service knows its providers at compile time. There is no runtime registry, no `Register()` call, and
+no `init()` side effects; importing a package never registers anything. Adding a provider is one new
+import and one new switch case at the composition root, with no change to the capability package.
+
+## One provider per target API, not per deployment
+
+A provider is defined for a target API or system, not for a place it runs. The self-hosted ↔ managed seam
+is a configuration change — endpoint, credentials, DSN — within a single provider wherever the API is
+shared, and only spans providers when the APIs genuinely differ. Object storage is one provider per API
+family (an S3-API provider serving a local emulator or a managed cloud; an Azure Blob provider likewise),
+not one per environment. SQL is one provider per driver/dialect, each covering local and managed
+deployments of that engine through its connection string.
+
+## Capability interfaces are named per package
+
+Each capability names its interface(s) for what reads best in its own package, rather than a forced
+uniform noun. A capability that manages a lifecycle-bound client exposes a single encapsulated interface
+(`database.DB`, `storage.Store`); a behavior-only capability exposes behavior interfaces
+(`auth.Authenticator`, `auth.TokenSource`). Such an interface integrates with the `lifecycle` package at
+the composition root — its start/stop wired through the coordinator, its readiness satisfying the
+readiness contract — rather than re-declaring the lifecycle shape itself.
 
 ## Tests: co-located and black-box
 
