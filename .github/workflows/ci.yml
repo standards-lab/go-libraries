@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         module:
-          - core
+          - "."
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -39,7 +39,7 @@ jobs:
       fail-fast: false
       matrix:
         module:
-          - core
+          - "."
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

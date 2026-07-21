@@ -16,10 +16,13 @@ vendor SDK) — worth a possible follow-up to the org-level context.
 
 ## Base library packages
 
-- **lifecycle** — promoted to the first build; see `reset.md`. The process-lifecycle coordinator
-  (concurrent startup hooks, a readiness signal, timeout-bounded graceful shutdown). Startup hooks carry
-  no error handling: a hook that cannot do its job fails the process directly; the coordinator stays an
-  orchestrator. Its readiness contract is what `web`'s `/readyz` consumes.
+- **lifecycle** — built (`lifecycle/`). The process-lifecycle coordinator: the caller provides the root
+  context (`New(ctx)`), startup hooks run concurrently, and shutdown is two-phase — cancel the root, then
+  invoke each hook with a fresh timeout-bounded drain context. Startup hooks carry no error handling (a
+  hook that cannot do its job fails the process). Readiness is non-monotonic (ready after startup,
+  not-ready once shutdown begins) and satisfies `ReadinessChecker`, the contract `web`'s `/readyz`
+  consumes. The settled conventions are in `design/conventions.md`; the code and its `doc.go` are now
+  authoritative for the package shape.
 - **config** — layered configuration (base + overlay + `secrets.json`) and the merge/finalize/env
   contract each capability's config implements. In the baseline this was a per-module convention with no
   shared machinery and no secrets file; here it becomes a real base primitive.

@@ -1,5 +1,3 @@
 go 1.26
 
-// Modules are added to the use-list as they land. First: core (next session).
-// The go.work use-list, the mise GO_MODULES var, and the ci.yml matrix name the
-// same modules and are updated together.
+use .
