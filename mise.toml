@@ -5,7 +5,7 @@ golangci-lint = "latest"
 # Space-separated list of module directories. Grows with the repo; kept in sync
 # with the go.work use-list and the ci.yml matrix. First module: core.
 [env]
-GO_MODULES = ""
+GO_MODULES = "."
 
 [tasks.build]
 description = "Build all modules"

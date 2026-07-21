@@ -1,46 +1,32 @@
-# reset · module-topology-redesign
+# reset · build-base-lifecycle
 
 - **Status:** closeout
-- **Session:** plan
-- **Branch:** module-topology-redesign
+- **Session:** start
+- **Branch:** build-base-lifecycle
 
 ## Disposition
 
-- **Re-derived the module topology** (`design/library-topology-and-naming.md`, `concepts/module-set.md`):
-  the repository is now **one base library** (a single module rooted at
-  `github.com/standards-lab/go-libraries`, capabilities as packages, released as `v<semver>`) plus
-  **provider sub-modules** (heavy-SDK implementations, tagged `<path>/v<semver>`). Replaces the earlier
-  module-per-capability framing. **There is no `core` module** — its concerns become distinct base
-  packages (`lifecycle`, `config`).
-- **Settled provider selection and granularity** (`design/conventions.md`): providers are chosen by
-  **direct typed construction** (a `Provider` constant + a typed switch at the composition root; no
-  registry, no `Register()`, no `init()` side effects), and defined **one per target API**, not per
-  deployment — the self-hosted↔managed seam is config within a provider (so storage is `s3` + `azureblob`,
-  not four providers).
-- **Settled the base dependency policy** (`design/conventions.md`): near-stdlib only (`golang.org/x/…`,
-  `google/uuid`); heavy/vendor deps live only in provider sub-modules.
-- **Settled capability interface naming** (`design/conventions.md`, `design/library-topology-and-naming.md`):
-  per package, not a uniform noun — `database.DB` (package stays `database`, avoiding a stdlib
-  `database/sql` clash), `storage.Store`, and `auth.Authenticator`/`auth.TokenSource`.
-- **Locked the lifecycle shape** (`concepts/module-set.md`): faithful coordinator — concurrent
-  `OnStartup`, `WaitForStartup` flips one readiness signal, `OnShutdown` gated on context cancellation,
-  timeout-bounded `Shutdown`; **no startup-hook error handling** (a failing hook fails the process).
-- **Recorded relocations** (`concepts/module-set.md`): `result` envelope → `web`; the `bytes`/`parse`/
-  `workers` grab-bag not ported; pagination decomposed (`database` owns the persistence query vocabulary,
-  `web` owns the HTTP shapes); `logger` deferred to a future `logging` package.
-- **Updated cross-cutting notes** (`README.md` capability map, `design/release-and-ci.md`, `CLAUDE.md`
-  module-layout/release bullets) to the new topology. Stable context cites no sibling repo; the
-  `ref-go-libraries` derivation notes live in `concepts/module-set.md`.
-- **Retained:** the open questions in `concepts/module-set.md` — the exact members of `database.DB`/
-  `storage.Store`, the `config` package shape, the query and page-response shapes, and the storage
-  provider API choices — all unbuilt, settled when each capability is reached.
+- **Built the base module and its first package, `lifecycle`** (`go.mod`, `lifecycle/`): the
+  process-lifecycle coordinator — caller-provided root context (`New(ctx)`), concurrent startup hooks, a
+  `ReadinessChecker` contract, and two-phase, timeout-bounded graceful shutdown. Black-box tests (`-race`,
+  7 cases), `doc.go`, and the root `CHANGELOG.md` (seeded `v0.1.0`) accompany it.
+- **Wired the base module `.` into the three synced lists**: the `go.work` use-list, `mise`'s
+  `GO_MODULES`, and the `ci.yml` matrix (the stale `core` entry became `.` in both the test and lint jobs).
+  `mise run test`/`lint` and CI's `go.mod`-guarded steps now activate on the base module.
+- **Promoted** the settled lifecycle/context conventions into `design/conventions.md` ("Process lifecycle
+  and context ownership"): the composition root owns the root context and traps signals; shutdown is
+  coordinator-driven with a fresh drain context; readiness is non-monotonic; leaf subsystems take a plain
+  `context.Context`. These refined the previously "locked" lifecycle shape, grounded in the
+  ref-go-libraries / herald / personnel-service-demo sources.
+- **Integrated** the `lifecycle` bullet in `concepts/module-set.md` — marked built and pointed at the code
+  and conventions; the code and its `doc.go` are now authoritative for the package shape.
+- **Retained:** the rest of `concepts/module-set.md` (config, auth, database, storage, web, and the
+  provider set) and its open questions — all still unbuilt, settled when each capability is reached.
 
 ## Next-focus
 
-Build the base library's first package, **`lifecycle`**. Create the root `go.mod` for
-`github.com/standards-lab/go-libraries` (near-stdlib), the `lifecycle` package (the coordinator and its
-readiness contract) with its `doc.go` and co-located black-box tests, and the root `CHANGELOG.md` seeded
-with `v0.1.0`. Wire the base module in as the first entry of the three synced lists — add `.` to the
-`go.work` use-list and to `mise`'s `GO_MODULES`, and change the `ci.yml` matrix's stale `core` entry to
-the base module (`.`), confirming its `go.mod`-guarded steps activate. Then `config`, then a minimal
-`web`. Start here next session with `marathon start`.
+Build the base library's next package, **`config`**: layered configuration (base + overlay +
+`secrets.json`) and the merge/finalize/env contract each capability's config implements — the shared base
+primitive the baseline lacked. Settle the `Load` orchestration and the config shape as it is built (open
+questions in `concepts/module-set.md`). It lands as a package of the existing base module — no new module,
+no synced-list change. Start here next session with `marathon start`.

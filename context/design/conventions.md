@@ -45,6 +45,25 @@ uniform noun. A capability that manages a lifecycle-bound client exposes a singl
 the composition root — its start/stop wired through the coordinator, its readiness satisfying the
 readiness contract — rather than re-declaring the lifecycle shape itself.
 
+## Process lifecycle and context ownership
+
+The `lifecycle` package coordinates startup, readiness, and graceful shutdown, and it fixes the
+ecosystem's context-ownership convention. The composition root owns the root context — it traps signals
+(`signal.NotifyContext`) and passes the context to `lifecycle.New`, which derives the cancellable context
+every subsystem observes through `Coordinator.Context`. The coordinator installs no signal handlers of its
+own, so a long-running service and a short-lived command share one context-derivation story.
+
+Shutdown is two-phase and coordinator-driven: `Shutdown` cancels the root context, then invokes each
+registered hook with a fresh, timeout-bounded drain context derived from `context.Background()`, so cleanup
+is not pre-cancelled. A shutdown hook needs no cancellation guard of its own — it takes the drain context
+and runs its graceful drain (`http.Server.Shutdown`, an in-flight wait) against it. Long-lived work that
+must observe cancellation during operation watches `Coordinator.Context` instead.
+
+Readiness is non-monotonic: the coordinator is ready once startup completes and not-ready again once
+shutdown begins, so a `/readyz` probe reports a draining process as unavailable. A capability exposes its
+own readiness through `lifecycle.ReadinessChecker`; its leaf subsystems take a plain `context.Context`
+rather than the coordinator, keeping them usable without it.
+
 ## Tests: co-located and black-box
 
 Tests are `{file}_test.go` files co-located with the source they cover, in an external test package
