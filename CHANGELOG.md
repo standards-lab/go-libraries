@@ -13,3 +13,6 @@ each provider sub-module keeps its own.
 - `lifecycle` package: a process-lifecycle coordinator with a caller-provided root context, concurrent
   startup hooks, a readiness contract (`ReadinessChecker`), and two-phase, timeout-bounded graceful
   shutdown.
+- `config` package: a generic layered configuration loader (`Load`) over a `Config`/`Merge`/`Finalize`
+  contract, layering a base file, an environment overlay, `secrets.json`, and a secrets overlay, plus an
+  `EnvName` helper for composing environment-variable override names.

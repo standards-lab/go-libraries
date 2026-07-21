@@ -23,9 +23,12 @@ vendor SDK) — worth a possible follow-up to the org-level context.
   not-ready once shutdown begins) and satisfies `ReadinessChecker`, the contract `web`'s `/readyz`
   consumes. The settled conventions are in `design/conventions.md`; the code and its `doc.go` are now
   authoritative for the package shape.
-- **config** — layered configuration (base + overlay + `secrets.json`) and the merge/finalize/env
-  contract each capability's config implements. In the baseline this was a per-module convention with no
-  shared machinery and no secrets file; here it becomes a real base primitive.
+- **config** — built (`config/`). The layered configuration loader and the contract each capability's
+  config implements: a generic `Load` layers base + environment overlay + `secrets.json` + secrets
+  overlay onto a caller's type, which supplies `Merge`/`Finalize`; `EnvName` composes override-variable
+  names. In the baseline this was a per-module convention with no shared machinery and no secrets file;
+  here it became the real base primitive the consumers had hand-rolled. Settled in `design/config.md`;
+  the code and its `doc.go` are now authoritative for the package shape.
 - **auth** — `Authenticator`/`TokenSource` behavior interfaces; providers (Keycloak self-hosted, Entra
   and others managed) as nested sub-modules. Authorization (RBAC/ABAC) as an in-package `auth/authz`,
   with the enforcement point in `web`.
@@ -67,7 +70,6 @@ and no `Register()`. (The baseline built a registry, then removed it as unused; 
 ## Open questions to settle as each capability is built
 
 - The exact members of `database.DB` and `storage.Store` (lifecycle + access surface).
-- The `config` package shape — the layered `Load` orchestration and the merge/finalize/env contract.
 - The persistence query vocabulary shape (`database`) and the HTTP page-response shape (`web`).
 - Final storage provider API choices, and whether both the S3 and Azure Blob families are demonstrated.
 - The exact split between `web`'s success envelope, problem responses, and middleware as `web` is built.
