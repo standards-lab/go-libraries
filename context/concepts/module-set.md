@@ -36,9 +36,14 @@ vendor SDK) — worth a possible follow-up to the org-level context.
   mssql) as nested sub-modules.
 - **storage** — the `storage.Store` interface; providers per API family (S3, Azure Blob) as nested
   sub-modules.
-- **web** — the HTTP layer: `net/http` bootstrap, RFC 9457 problem responses, a success envelope,
-  HTTP query-param and page-response shapes, middleware, `/healthz` and `/readyz`, and the authorization
-  enforcement point.
+- **web** — partly built (`web/`). The bootstrap and the health surface are in: a `Server` that binds
+  before it serves, a `Config` implementing the configuration contract, RFC 9457 problem responses, a
+  JSON writer, and `/healthz` and `/readyz` aggregating `lifecycle.ReadinessChecker` participants. It is
+  one flat package — a split is earned by dependency weight, not by topic — and it defines no problem
+  type URIs, leaving that vocabulary to consumers. Settled in `design/web.md`; the code and its `doc.go`
+  are authoritative for the package shape. Still to come: middleware, error-to-status mapping, the
+  success envelope, the HTTP query-param and page-response shapes, and the authorization enforcement
+  point.
 
 Future base packages (e.g. **logging**) are added when a consumer needs them — subsystems already take a
 stdlib `*slog.Logger`, so a logging construction helper waits until `web`/observability calls for it.
@@ -72,4 +77,6 @@ and no `Register()`. (The baseline built a registry, then removed it as unused; 
 - The exact members of `database.DB` and `storage.Store` (lifecycle + access surface).
 - The persistence query vocabulary shape (`database`) and the HTTP page-response shape (`web`).
 - Final storage provider API choices, and whether both the S3 and Azure Blob families are demonstrated.
-- The exact split between `web`'s success envelope, problem responses, and middleware as `web` is built.
+- The shape of `web`'s success envelope and its middleware chain. Problem responses are settled
+  (`design/web.md`); the envelope waits for a domain handler, and middleware for the logging story and
+  for `auth`.

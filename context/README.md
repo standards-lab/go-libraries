@@ -51,8 +51,8 @@ Base library packages:
   readiness signal), and the authorization enforcement point.
 
 The set is provisional, not a commitment — see `concepts/module-set.md`. Each capability is settled when
-it is built. Build order starts with `lifecycle`, then `config`, then a minimal `web`; the remaining
-capabilities follow as they are reached, and providers are scaffolded only when built.
+it is built. `lifecycle`, `config`, and a minimal `web` are in; the remaining capabilities follow as they
+are reached, and providers are scaffolded only when built.
 
 ## How this repository works
 
