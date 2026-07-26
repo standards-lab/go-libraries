@@ -36,17 +36,20 @@ vendor SDK) — worth a possible follow-up to the org-level context.
   mssql) as nested sub-modules.
 - **storage** — the `storage.Store` interface; providers per API family (S3, Azure Blob) as nested
   sub-modules.
-- **web** — partly built (`web/`). The bootstrap and the health surface are in: a `Server` that binds
-  before it serves, a `Config` implementing the configuration contract, RFC 9457 problem responses, a
-  JSON writer, and `/healthz` and `/readyz` aggregating `lifecycle.ReadinessChecker` participants. It is
-  one flat package — a split is earned by dependency weight, not by topic — and it defines no problem
-  type URIs, leaving that vocabulary to consumers. Settled in `design/web.md`; the code and its `doc.go`
-  are authoritative for the package shape. Still to come: middleware, error-to-status mapping, the
-  success envelope, the HTTP query-param and page-response shapes, and the authorization enforcement
-  point.
-
-Future base packages (e.g. **logging**) are added when a consumer needs them — subsystems already take a
-stdlib `*slog.Logger`, so a logging construction helper waits until `web`/observability calls for it.
+- **logging** — built (`logging/`). A `Config`/`Env` implementing the configuration contract and a `New`
+  returning a `*slog.Logger` over a caller-supplied writer. The trigger this note set — a consumer needing
+  it — fired when `web`'s request logger arrived, and both baselines had hand-rolled the same level
+  parsing. The package turned out to be thinner than the baseline's: `slog.Level` already parses the
+  vocabulary, so only the config seam and the handler choice remained. Settled in `design/logging.md`;
+  the code and its `doc.go` are now authoritative for the package shape.
+- **web** — partly built (`web/`). The bootstrap, the health surface, and the middleware chain are in: a
+  `Server` that binds before it serves, a `Config` implementing the configuration contract, RFC 9457
+  problem responses, a JSON writer, `/healthz` and `/readyz` aggregating `lifecycle.ReadinessChecker`
+  participants, and `Middleware`/`Chain` with a `RequestLogger`. It is one flat package — a split is
+  earned by dependency weight, not by topic — and it defines no problem type URIs, leaving that
+  vocabulary to consumers. Settled in `design/web.md`; the code and its `doc.go` are authoritative for the
+  package shape. Still to come: the rest of the middleware set, error-to-status mapping, the success
+  envelope, the HTTP query-param and page-response shapes, and the authorization enforcement point.
 
 ## Provider sub-modules (provisional — scaffolded only when built)
 
@@ -77,6 +80,6 @@ and no `Register()`. (The baseline built a registry, then removed it as unused; 
 - The exact members of `database.DB` and `storage.Store` (lifecycle + access surface).
 - The persistence query vocabulary shape (`database`) and the HTTP page-response shape (`web`).
 - Final storage provider API choices, and whether both the S3 and Azure Blob families are demonstrated.
-- The shape of `web`'s success envelope and its middleware chain. Problem responses are settled
-  (`design/web.md`); the envelope waits for a domain handler, and middleware for the logging story and
-  for `auth`.
+- The shape of `web`'s success envelope. Problem responses and the middleware chain are settled
+  (`design/web.md`); the envelope waits for a domain handler.
+- Whether middleware earns a package of its own, and when — see `concepts/middleware-split.md`.
