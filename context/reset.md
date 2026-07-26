@@ -1,60 +1,65 @@
-# reset · build-web-package
+# reset · build-logging-and-middleware
 
 - **Status:** closeout
 - **Session:** start
-- **Branch:** build-web-package
+- **Branch:** build-logging-and-middleware
 
 ## Disposition
 
-- **Built the base library's `web` package** (`web/`): a `Server` that binds the listener on the calling
-  goroutine and only then serves in the background — so a bind failure reaches the caller instead of a
-  goroutine nobody watches — reporting the bound address and delivering any later serve failure on a
-  buffered `Err()` channel; a `Config`/`Env` pair implementing the `config` contract; RFC 9457 problem
-  responses (`Problem`, `WriteProblem`, `WriteProblemWith`) and a `WriteJSON` writer; and `/healthz` and
-  `/readyz` handlers aggregating named `lifecycle.ReadinessChecker` participants. Also added
-  `config.Duration`, a duration that travels through JSON as a string, replacing the stringly-typed
-  timeout fields and per-field accessors both baselines hand-rolled. Black-box tests (`-race`, 33 in
-  `web` and 10 in `config`), `web/doc.go`, and `web` plus `Duration` entries in the **unreleased**
-  `v0.1.0` `CHANGELOG.md`. Packages of the existing base module — no new module, no `go.work`/`mise`/CI
-  synced-list change.
-- **Promoted** the settled HTTP posture into a new `design/web.md`: the bootstrap rationale (bind before
-  serve, the composition root owns the wiring, no shutdown timeout of its own since the coordinator
-  supplies a drain context); the **one flat package** rule — a split is earned by dependency weight, not
-  by topic, the same test that makes `database/postgres` a sub-module; health as a readiness *surface*
-  that contributes no checker of its own; and the decision that **the library defines no problem type
-  URIs**, because a `type` names an application's vocabulary rather than a library's, leaving it to
-  consumers and accepting that `/readyz` carries its `checks` extension on an `about:blank` problem.
-- **Integrated** the `web` bullet in `concepts/module-set.md` — marked partly built, pointed at the code
-  and `design/web.md`, listed what remains — narrowed the open question about `web`'s internal split to
-  the envelope and middleware only, and updated the `README.md` build-order line now that `lifecycle`,
-  `config`, and a minimal `web` are in.
-- **Retained:** the rest of `concepts/module-set.md` (auth, database, storage, and the provider set) and
-  its remaining open questions — all still unbuilt, settled when each capability is reached.
+- **Built the `logging` package** (`logging/`): a `Config`/`Env` pair implementing the configuration
+  contract and `New(w io.Writer, cfg Config) *slog.Logger` selecting the text or JSON handler. It came out
+  thinner than either baseline's, because `slog.Level` already parses the whole level vocabulary
+  case-insensitively — offsets included — so `Level.Slog` is a delegation rather than the `Valid()`/`Slog()`
+  switches both baselines hand-rolled. `Level` is still a string rather than a `slog.Level`: `slog.LevelInfo`
+  is the zero value, so a `slog.Level` field cannot tell "set to info" from "unset", which is the
+  distinction the merge contract runs on.
+- **Built the middleware primitives in `web`** (`web/middleware.go`, `web/logger.go`): `Middleware`,
+  `Chain` composing in argument order and skipping nil entries, and `RequestLogger` emitting one info
+  record per request through a caller-supplied stdlib `*slog.Logger`. Its `ResponseWriter` wrapper fixes
+  two baseline defects — it delegates a superfluous second `WriteHeader` instead of swallowing it, and it
+  implements `Unwrap`, so `http.ResponseController` reaches flushing and hijacking through the wrapper.
+  Seeding the recorded status with 200 removed the need to intercept `Write` at all.
+- Black-box tests (`-race`, 26 in `logging`, `web` up from 33 to 41), `logging/doc.go`, a middleware
+  section in `web/doc.go`, and both entries under the **unreleased** `v0.1.0` `CHANGELOG.md`. Packages of
+  the existing base module — no new module, no `go.work`/`mise`/CI synced-list change.
+- **Promoted** `design/logging.md`: the standard library owns the level vocabulary; why `Level` is a
+  string anyway; the writer as a parameter rather than a configuration field, since a configuration
+  carries values and is discarded; and `New` returning no error because `Finalize` is the validation
+  point.
+- **Promoted** a settled **Middleware** section into `design/web.md`, including the rule that a middleware
+  belongs to the transport that consumes it rather than to the capability it collaborates with —
+  `logging` does not ship the request logger, and `auth` will not ship the authentication middleware,
+  because that inverts the dependency direction and the record is HTTP vocabulary in any case.
+- **Integrated** the serve-failure paragraph in `design/web.md`, which justified the error channel partly
+  by the library having "no logging story". That premise is gone; the paragraph now rests on the reason
+  that survives — logging the failure would be choosing a policy the composition root owns.
+- **Integrated** `concepts/module-set.md`: `logging` marked built with the trigger that fired and a note
+  that it landed thinner than predicted, `web`'s remaining list narrowed, and the open question about
+  middleware shape replaced. `context/README.md` gained a `logging` entry and an updated build-order line.
+- **Retained:** `concepts/middleware-split.md`, written this session — middleware stays in flat `web` for
+  now, and the note records that naming, file count, and `auth` do not earn a split, while a middleware
+  carrying real weight (an OpenTelemetry SDK, a Redis rate limiter) would. Also retained: the rest of
+  `concepts/module-set.md` (auth, database, storage, and the provider set), all still unbuilt.
 
 ## Next-focus
 
-Complete the base library to a releasable **v0.1.0**, then tag it. Three pieces, in order:
+Tag the base library **v0.1.0**. The ergonomics pass the previous reset queued as piece 3 —
+`srv.Bind(lc)`, `lc.Run(timeout)`, and a fatal-error path from a subsystem to the coordinator — is
+deliberately **not** built first. Those shapes were inferred from a scratch program rather than proven,
+this session's scratch program exercised `web` without `lifecycle` and so added no evidence, and the
+composition root that would settle them is the next level up, which builds against this tag. Releasing
+now unblocks that level and lets the ergonomics come back as a `v0.2.0` refinement shaped by a real
+consumer.
 
-1. A **`logging` package** — a `Config`/`Env` implementing the configuration contract (level, format) and
-   a constructor returning a `*slog.Logger`. This is the trigger condition `module-set.md` set for a
-   logging package: both baselines hand-roll the same `LogLevel` parsing and handler construction, so the
-   need is demonstrated rather than predicted.
-2. **Middleware primitives in `web`** — a `Middleware` type, a chain helper, and the request logger built
-   on the new `logging` package. Still deferred: CORS (no browser client), `Auth`/`Authorize` (blocked on
-   `auth`), and error-to-status mapping (blocked on a domain handler).
-3. An **ergonomics pass** on the composition root. This session's scratch program measured it: of roughly
-   thirty statements needed to stand a service up, only about six encode a decision — where config lives,
-   which routes and checks are registered, the drain timeout — while the rest is identical in every
-   consumer (trap signals, `lifecycle.New`, register `Start` with a fatal-on-error closure, register
-   `Shutdown` with a log-on-error closure, `WaitForStartup`, `select` on `Context().Done()` versus
-   `Err()`, then `Shutdown`). Candidate shapes are `srv.Bind(lc)` to register both hooks in one explicit
-   call, and `lc.Run(timeout)` to absorb the wait-block-drain sequence — which first needs a way for a
-   subsystem to report a fatal runtime error to the coordinator, since that is what the `select` over
-   `Err()` exists for. Keep both **additive**: `Start`, `Shutdown`, `OnStartup`, and `OnShutdown` stay
-   public and usable on their own, so a helper can be reshaped later without disturbing the foundation.
-   Unlike the first two pieces, these shapes are inferred from one scratch program rather than proven by
-   a real composition root — build them lightly.
+The session is small and mostly ceremony, so treat the release itself as the object of attention:
 
-Close by tagging `v0.1.0` from the root `CHANGELOG.md`, which is also the first exercise of
-`.github/workflows/release.yml`. That release is what the next level builds against; the ceremony a real
-composition root turns out not to need comes back as a `v0.2.0` refinement.
+1. Move the `## [v0.1.0]` heading in the root `CHANGELOG.md` off its drafting date (`2026-07-21`) to the
+   actual release date. `taiki-e/create-gh-release-action` slices the section by that heading.
+2. Push the bare root tag `v0.1.0` — the first exercise of `.github/workflows/release.yml`, and the first
+   evidence that the tag-to-artifact derivation in `design/release-and-ci.md` works. Watch it rather than
+   assume it: a `v*` tag must read the root `CHANGELOG.md`, not a sub-module's.
+3. Confirm the module resolves from the public proxy at the tagged version
+   (`go list -m github.com/standards-lab/go-libraries@v0.1.0`), which is the check that matters to every
+   consumer downstream.
+
+If the release workflow needs fixing, that fix is the session's real work and the tag is re-cut after it.

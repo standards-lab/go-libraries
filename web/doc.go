@@ -52,6 +52,26 @@
 // [RegisterHealth] mounts both endpoints on a [Mounter], which http.ServeMux
 // satisfies incidentally.
 //
+// # Middleware
+//
+// A [Middleware] wraps one http.Handler in another, and [Chain] composes a set
+// of them around a handler in argument order: in Chain(h, a, b), a sees the
+// request first. A nil entry is skipped, so a caller can build a chain with
+// conditional entries without filtering it first.
+//
+// [RequestLogger] emits one info record per request — method, path, status,
+// duration, and remote address — through a *slog.Logger the caller supplies.
+// It takes the standard library's type rather than a constructed one, so the
+// HTTP layer stays independent of how an application builds its logger. Every
+// request logs at info: deciding that a 5xx deserves error level means knowing
+// whether the status came from the application's own failure, which is a
+// judgment the error-to-status mapping owns rather than the middleware.
+//
+// The middleware wraps the ResponseWriter to capture the status. The wrapper
+// records the first status written and implements Unwrap, so a handler reaches
+// flushing and hijacking through http.ResponseController as if it were not
+// wrapped.
+//
 // # Problem responses
 //
 // Error responses are RFC 9457 problem documents. The type member identifies

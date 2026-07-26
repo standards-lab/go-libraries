@@ -38,6 +38,9 @@ Base library packages:
   First to be built; see `reset.md`.
 - **config** — layered configuration: a base file, environment overlays, and `secrets.json`, resolved
   through a merge/finalize contract each capability's config implements.
+- **logging** — the `*slog.Logger` a process writes through, built from a configuration that takes part in
+  the layered load. It constructs a logger and nothing more: the level vocabulary is `slog`'s, and the
+  HTTP request logger belongs to `web`. See `design/logging.md`.
 - **auth** — authentication behind `Authenticator`/`TokenSource` interfaces, with providers (a
   self-hosted Keycloak provider alongside managed ones) as nested sub-modules. Authorization (ABAC/RBAC)
   as an in-package `auth/authz`.
@@ -51,8 +54,9 @@ Base library packages:
   readiness signal), and the authorization enforcement point.
 
 The set is provisional, not a commitment — see `concepts/module-set.md`. Each capability is settled when
-it is built. `lifecycle`, `config`, and a minimal `web` are in; the remaining capabilities follow as they
-are reached, and providers are scaffolded only when built.
+it is built. `lifecycle`, `config`, `logging`, and a `web` carrying the bootstrap, the health surface, and
+the middleware chain are in; the remaining capabilities follow as they are reached, and providers are
+scaffolded only when built.
 
 ## How this repository works
 

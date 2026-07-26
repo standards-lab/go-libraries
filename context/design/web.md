@@ -17,9 +17,9 @@ startup. Binding first also makes the bound address knowable, so a caller can as
 what it got — which is what lets tests bind without racing a fixed port.
 
 A serve failure after startup is a value, not a log line: it goes to a buffered channel the root selects
-on and decides policy for. This keeps a logging dependency out of the base library while it has no
-logging story, and a root that ignores the channel is no worse off than the baseline that logged and
-carried on.
+on and decides policy for. That stays right now that `logging` exists — a library that logged the failure
+would be choosing a policy the composition root owns, and a root that ignores the channel is no worse off
+than the baseline that logged and carried on.
 
 `web` registers no lifecycle hooks and holds no shutdown timeout. The coordinator cancels the root
 context and then invokes each hook with a fresh timeout-bounded drain context, which `Shutdown(ctx)`
@@ -68,13 +68,37 @@ deferred until something asks for it.
 An empty title defaults to the status phrase. That is what the RFC asks of an `about:blank` problem, and
 it keeps a hand-typed title from drifting away from the status code it accompanies.
 
+## Middleware
+
+`Middleware` is `func(http.Handler) http.Handler` — the shape the ecosystem already uses — and `Chain`
+composes a set of them in argument order, so the first argument sees the request first. Both live in
+`web` under the one-flat-package rule; `concepts/middleware-split.md` records what would earn them a
+package of their own.
+
+A middleware belongs to the transport that consumes it, not to the capability it collaborates with. The
+request logger is in `web` and takes a stdlib `*slog.Logger` rather than living in `logging` and taking a
+`Middleware`; the same reasoning will keep `Auth` here rather than in `auth`. The alternative inverts the
+dependency direction — a worker that wants a logger would compile `net/http` to get one — and the record
+the request logger emits is HTTP vocabulary in any case.
+
+Two things the baseline's request logger got wrong, both from wrapping the `ResponseWriter`. It swallowed
+a second `WriteHeader` instead of delegating it, hiding the standard library's superfluous-header warning;
+and it implemented no `Unwrap`, so wrapping silently cost a handler flushing and hijacking. The wrapper
+here records the first status, always delegates, and implements `Unwrap` so `http.ResponseController`
+reaches through it. Seeding the recorded status with 200 covers the handler that writes a body without
+calling `WriteHeader`, which removes the need to intercept `Write` at all.
+
+Every request logs at info. Treating a 5xx as an error record means knowing whether the status came from
+the application's own failure, and that judgment belongs to the error mapping below, not to the
+middleware. The duration attribute is a `slog.Duration`, which the JSON handler renders as nanoseconds; a
+`duration_ms` float would suit dashboards better and waits for an observability consumer to ask.
+
 ## What the HTTP layer still needs
 
 Deferred deliberately, each waiting on a consumer that would validate its shape:
 
-- **Middleware** — a `func(http.Handler) http.Handler` chain composes outside the server today. The
-  request logger waits on the logging story; `Auth`/`Authorize` wait on `auth` and `auth/authz`; CORS
-  waits on a browser client.
+- **The rest of the middleware set** — `Auth`/`Authorize` wait on `auth` and `auth/authz`; CORS waits on a
+  browser client; a recovery handler and a request ID wait for a service to need them.
 - **Error mapping** — the domain-error-to-status matchers that turn a returned error into a problem
   response. Additive to the problem writers; needs a domain handler to exercise it.
 - **The success envelope and the page response** — the shape a handler returns on success, and the
