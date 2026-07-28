@@ -1,10 +1,23 @@
 # go-libraries
 
-Go reference libraries for the standards lab — layered, independently versioned building blocks for
-modern cloud-native enterprise services.
+Go reference libraries for Standards Lab — layered building blocks for modern cloud-native enterprise
+services.
 
-A public, multi-module monorepo: each capability is its own Go module, versioned and released
-independently, so a consumer can take one library without pulling the rest.
+The repository holds one base library: a single Go module rooted at
+`github.com/standards-lab/go-libraries`. Each capability is a package inside that module, and all of them
+are versioned and released together.
+
+Providers that depend on a third-party SDK are separate modules in nested directories, such as
+`database/postgres`. Each one is named for the system it targets and is released on its own schedule, so a
+consumer that needs one provider does not download the others. The base library itself has no third-party
+dependencies.
+
+## Packages
+
+- `lifecycle` — starts subsystems concurrently, reports readiness, and shuts down within a timeout.
+- `config` — loads configuration in layers: a base file, an environment overlay, and secrets.
+- `logging` — builds an `*slog.Logger` from a configuration that `config` loads.
+- `web` — an HTTP server, RFC 9457 problem responses, `/healthz` and `/readyz`, and a middleware chain.
 
 ## Development
 
@@ -13,3 +26,7 @@ The repository uses a Go workspace and [mise](https://mise.jdx.dev):
 ```
 mise run test    # build and test every module
 ```
+
+## License
+
+[Apache License 2.0](LICENSE).
