@@ -2,6 +2,7 @@ package lifecycle_test
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -189,5 +190,149 @@ func TestNew_DerivesFromParentContext(t *testing.T) {
 	// An explicit Shutdown still drains cleanly after a parent-driven cancel.
 	if err := lc.Shutdown(failsafe); err != nil {
 		t.Fatalf("Shutdown after parent cancellation returned error: %v", err)
+	}
+}
+
+func TestShutdown_TwiceRunsHooksOnce(t *testing.T) {
+	lc := lifecycle.New(context.Background())
+
+	var count atomic.Int64
+	lc.OnShutdown(func(context.Context) { count.Add(1) })
+
+	if err := lc.Shutdown(failsafe); err != nil {
+		t.Fatalf("first Shutdown returned error: %v", err)
+	}
+	if err := lc.Shutdown(failsafe); err != nil {
+		t.Fatalf("second Shutdown returned error: %v", err)
+	}
+	if got := count.Load(); got != 1 {
+		t.Fatalf("ran the shutdown hook %d times, want 1", got)
+	}
+}
+
+func TestShutdown_ConcurrentCallsShareResult(t *testing.T) {
+	lc := lifecycle.New(context.Background())
+
+	var count atomic.Int64
+	entered := make(chan struct{})
+	lc.OnShutdown(func(context.Context) {
+		count.Add(1)
+		close(entered)
+		time.Sleep(50 * time.Millisecond)
+	})
+
+	first := make(chan error, 1)
+	go func() { first <- lc.Shutdown(failsafe) }()
+
+	// The second call arrives while the first is still draining its hook.
+	recvOrFail(t, entered, "shutdown hook to start")
+	err2 := lc.Shutdown(failsafe)
+	err1 := recvOrFail(t, first, "first Shutdown to return")
+
+	if err1 != nil || err2 != nil {
+		t.Fatalf("Shutdown errors = %v, %v, want both nil", err1, err2)
+	}
+	if err1 != err2 {
+		t.Fatalf("concurrent Shutdown calls returned different results: %v vs %v", err1, err2)
+	}
+	if got := count.Load(); got != 1 {
+		t.Fatalf("ran the shutdown hook %d times, want 1", got)
+	}
+}
+
+func TestReady_FalseWhenShutdownInterruptsStartup(t *testing.T) {
+	lc := lifecycle.New(context.Background())
+
+	started := make(chan struct{})
+	lc.OnStartup(func() {
+		close(started)
+		<-lc.Context().Done()
+	})
+	recvOrFail(t, started, "startup hook to start")
+
+	waited := make(chan struct{})
+	go func() {
+		lc.WaitForStartup()
+		close(waited)
+	}()
+
+	// Let WaitForStartup block on the held startup hook before shutting down.
+	time.Sleep(20 * time.Millisecond)
+
+	if err := lc.Shutdown(time.Second); err != nil {
+		t.Fatalf("Shutdown returned error: %v", err)
+	}
+	recvOrFail(t, waited, "WaitForStartup to return")
+
+	if lc.Ready() {
+		t.Fatal("Ready() is true after Shutdown interrupted startup")
+	}
+	time.Sleep(20 * time.Millisecond)
+	if lc.Ready() {
+		t.Fatal("Ready() flipped back to true after Shutdown")
+	}
+}
+
+func TestOnStartup_PanicsAfterWaitForStartup(t *testing.T) {
+	lc := lifecycle.New(context.Background())
+	lc.WaitForStartup()
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("OnStartup after WaitForStartup did not panic")
+		}
+		if want := "lifecycle: OnStartup after WaitForStartup"; r != want {
+			t.Fatalf("panic = %v, want %q", r, want)
+		}
+	}()
+	lc.OnStartup(func() {})
+}
+
+func TestOnShutdown_PanicsAfterShutdown(t *testing.T) {
+	lc := lifecycle.New(context.Background())
+	if err := lc.Shutdown(failsafe); err != nil {
+		t.Fatalf("Shutdown returned error: %v", err)
+	}
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("OnShutdown after Shutdown did not panic")
+		}
+		if want := "lifecycle: OnShutdown after Shutdown"; r != want {
+			t.Fatalf("panic = %v, want %q", r, want)
+		}
+	}()
+	lc.OnShutdown(func(context.Context) {})
+}
+
+func TestShutdown_TimeoutWrapsDeadlineExceeded(t *testing.T) {
+	lc := lifecycle.New(context.Background())
+
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	lc.OnShutdown(func(context.Context) {
+		<-release
+	})
+
+	err := lc.Shutdown(20 * time.Millisecond)
+	if err == nil {
+		t.Fatal("Shutdown returned nil for a hook that outlived the timeout")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("error = %v, want errors.Is(err, context.DeadlineExceeded)", err)
+	}
+	if lc.Ready() {
+		t.Error("Ready() is true while a shutdown hook straggles past the timeout")
+	}
+}
+
+func TestShutdown_ZeroTimeoutNoHooks(t *testing.T) {
+	for i := range 100 {
+		lc := lifecycle.New(context.Background())
+		if err := lc.Shutdown(0); err != nil {
+			t.Fatalf("iteration %d: Shutdown(0) with no hooks returned error: %v", i, err)
+		}
 	}
 }

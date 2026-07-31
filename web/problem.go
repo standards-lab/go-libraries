@@ -13,7 +13,7 @@ const (
 
 type Problem struct {
 	Type     string `json:"type"`
-	Title    string `json:"title"`
+	Title    string `json:"title,omitempty"`
 	Status   int    `json:"status"`
 	Detail   string `json:"detail,omitempty"`
 	Instance string `json:"instance,omitempty"`
@@ -28,6 +28,9 @@ func (p Problem) Write(w http.ResponseWriter) error {
 }
 
 func (p *Problem) applyDefaults() {
+	if p.Status == 0 {
+		p.Status = http.StatusInternalServerError
+	}
 	if p.Type == "" {
 		p.Type = ProblemTypeBlank
 	}
@@ -67,8 +70,10 @@ func WriteProblemWith(
 
 	body := map[string]any{
 		"type":   p.Type,
-		"title":  p.Title,
 		"status": p.Status,
+	}
+	if p.Title != "" {
+		body["title"] = p.Title
 	}
 	if p.Detail != "" {
 		body["detail"] = p.Detail
@@ -77,6 +82,7 @@ func WriteProblemWith(
 		body["instance"] = p.Instance
 	}
 	maps.Copy(body, extras)
+	body["status"] = p.Status
 
 	w.Header().Set("Content-Type", ProblemMediaType)
 	w.WriteHeader(p.Status)

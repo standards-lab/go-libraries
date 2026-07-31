@@ -62,6 +62,32 @@ func TestConfig_FinalizeAppliesDefaults(t *testing.T) {
 	}
 }
 
+func TestConfig_FinalizeWhitespaceOnlyTakesDefaults(t *testing.T) {
+	cfg := logging.Config{Level: "   ", Format: "   "}
+	if err := cfg.Finalize(); err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+
+	if cfg.Level != logging.LevelInfo {
+		t.Errorf("Level = %q, want info (whitespace-only reads as unset)", cfg.Level)
+	}
+	if cfg.Format != logging.FormatText {
+		t.Errorf("Format = %q, want text (whitespace-only reads as unset)", cfg.Format)
+	}
+}
+
+func TestConfig_FinalizeNormalizesEnvLevel(t *testing.T) {
+	t.Setenv(envLevel, " INFO ")
+
+	cfg := logging.Config{Level: logging.LevelDebug, Env: testEnv()}
+	if err := cfg.Finalize(); err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if cfg.Level != logging.LevelInfo {
+		t.Errorf("Level = %q, want info (env value normalized after the read)", cfg.Level)
+	}
+}
+
 func TestConfig_FinalizeEnvOverridesFiles(t *testing.T) {
 	t.Setenv(envLevel, "error")
 	t.Setenv(envFormat, "json")

@@ -102,6 +102,57 @@ func TestDuration_SetMalformed(t *testing.T) {
 	}
 }
 
+func TestDuration_UnmarshalNullLeavesValue(t *testing.T) {
+	h := holder{Timeout: config.Duration(5 * time.Second)}
+	if err := json.Unmarshal([]byte(`{"timeout":null}`), &h); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if want := 5 * time.Second; time.Duration(h.Timeout) != want {
+		t.Errorf("Timeout = %s, want %s (null must leave the value alone)", h.Timeout, want)
+	}
+
+	var zero holder
+	if err := json.Unmarshal([]byte(`{"timeout":null}`), &zero); err != nil {
+		t.Fatalf("Unmarshal into zero value: %v", err)
+	}
+	if zero.Timeout != 0 {
+		t.Errorf("Timeout = %s, want the zero value", zero.Timeout)
+	}
+}
+
+func TestDuration_UnmarshalLargeIntegerExact(t *testing.T) {
+	// 9007199254740993 = 2^53 + 1: representable as int64 but not as float64,
+	// so an exact result proves the decode does not round-trip through float64.
+	var h holder
+	if err := json.Unmarshal([]byte(`{"timeout":9007199254740993}`), &h); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if got := int64(h.Timeout); got != 9007199254740993 {
+		t.Errorf("Timeout = %d ns, want 9007199254740993 exactly", got)
+	}
+}
+
+func TestDuration_UnmarshalFractionalNumberRejected(t *testing.T) {
+	var h holder
+	err := json.Unmarshal([]byte(`{"timeout":1.5}`), &h)
+	if err == nil {
+		t.Fatal("Unmarshal returned nil for a fractional bare number")
+	}
+	if !strings.Contains(err.Error(), "string form") {
+		t.Errorf("error = %v, want it to point at the string form", err)
+	}
+}
+
+func TestDuration_UnmarshalNegativeString(t *testing.T) {
+	var h holder
+	if err := json.Unmarshal([]byte(`{"timeout":"-5s"}`), &h); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if want := -5 * time.Second; time.Duration(h.Timeout) != want {
+		t.Errorf("Timeout = %s, want %s (negative durations parse)", h.Timeout, want)
+	}
+}
+
 func TestDuration_String(t *testing.T) {
 	if got := config.Duration(90 * time.Second).String(); got != "1m30s" {
 		t.Errorf("String() = %q, want 1m30s", got)

@@ -23,10 +23,10 @@ func NewServer(cfg Config, handler http.Handler) *Server {
 		http: &http.Server{
 			Addr:              cfg.Addr(),
 			Handler:           handler,
-			ReadTimeout:       time.Duration(cfg.ReadTimeout),
-			ReadHeaderTimeout: time.Duration(cfg.ReadHeaderTimeout),
-			WriteTimeout:      time.Duration(cfg.WriteTimeout),
-			IdleTimeout:       time.Duration(cfg.IdleTimeout),
+			ReadTimeout:       time.Duration(*cfg.ReadTimeout),
+			ReadHeaderTimeout: time.Duration(*cfg.ReadHeaderTimeout),
+			WriteTimeout:      time.Duration(*cfg.WriteTimeout),
+			IdleTimeout:       time.Duration(*cfg.IdleTimeout),
 		},
 		errs: make(chan error, 1),
 	}
@@ -71,5 +71,12 @@ func (s *Server) Err() <-chan error {
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
+	s.mu.Lock()
+	started := s.listener != nil
+	s.mu.Unlock()
+
+	if !started {
+		return errors.New("web: server not started")
+	}
 	return s.http.Shutdown(ctx)
 }

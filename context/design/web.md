@@ -5,8 +5,9 @@ this note holds the reasoning behind it and the intent for the parts not yet bui
 
 ## The bootstrap belongs in the library
 
-The baseline shipped health handlers but no server, so every consumer hand-wrote the same wrapper around
-`http.Server` — the same fifty lines in two demos, carrying the same defect: `ListenAndServe` binds inside
+Earlier implementations of this layer shipped health handlers but no server, so every consumer hand-wrote
+the same wrapper around `http.Server` — the same fifty lines in every service, with the same defect:
+`ListenAndServe` binds inside
 the goroutine it serves from, so a taken port or a bad address was logged by a goroutine nobody was
 watching while startup carried on and readiness reported healthy with nothing listening.
 
@@ -17,22 +18,22 @@ startup. Binding first also makes the bound address knowable, so a caller can as
 what it got — which is what lets tests bind without racing a fixed port.
 
 A serve failure after startup is a value, not a log line: it goes to a buffered channel the root selects
-on and decides policy for. That stays right now that `logging` exists — a library that logged the failure
-would be choosing a policy the composition root owns, and a root that ignores the channel is no worse off
-than the baseline that logged and carried on.
+on and decides policy for. That decision holds now that `logging` exists: a library that logged the
+failure would be choosing a policy the composition root owns, and a root that ignores the channel is no
+worse off than one that logged and carried on.
 
 `web` registers no lifecycle hooks and holds no shutdown timeout. The coordinator cancels the root
 context and then invokes each hook with a fresh timeout-bounded drain context, which `Shutdown(ctx)`
-consumes directly — so the baseline's private `context.WithTimeout` and its `<-lc.Context().Done()` wait
+consumes directly — so a hand-rolled private `context.WithTimeout` and a `<-lc.Context().Done()` wait
 have no counterpart here. `web` imports `lifecycle` only for the `ReadinessChecker` interface `/readyz`
 consumes.
 
 ## One flat package
 
-`web` is a single package, and stays one. In the baseline `web` was its own module and its concerns were
+`web` is a single package, and stays one. An earlier shape made `web` its own module with its concerns as
 sub-packages, but that split was organizational: `problem`, `respond`, and `health` are all near-stdlib,
 and none carries weight the rest of `web` shouldn't. So the rule that separates the base library from
-provider sub-modules applies one level down — **a split is earned by dependency weight, not by topic**.
+provider sub-modules applies one level down — a split is earned by dependency weight, not by topic.
 A sub-package appears only if some part of the HTTP layer needs a dependency the rest should not carry,
 the same test that makes `database/postgres` a sub-module.
 
@@ -40,7 +41,7 @@ The cost is that names take the prefix a sub-package would have carried: `WriteP
 `problem.Write`, and a future `CORSConfig` rather than `middleware.Config`, since `Config` is the
 server's. That is ordinary Go, and cheaper than fragmenting a cohesive capability.
 
-## Health is a surface, not a check
+## Health reports; it does not check
 
 `/healthz` reports that the process is up and serving HTTP and checks nothing else — that is what makes an
 unanswered probe the liveness signal rather than a 500. `/readyz` aggregates whatever
@@ -81,16 +82,17 @@ request logger is in `web` and takes a stdlib `*slog.Logger` rather than living 
 dependency direction — a worker that wants a logger would compile `net/http` to get one — and the record
 the request logger emits is HTTP vocabulary in any case.
 
-Two things the baseline's request logger got wrong, both from wrapping the `ResponseWriter`. It swallowed
+Two things earlier request loggers got wrong, both from wrapping the `ResponseWriter`. They swallowed
 a second `WriteHeader` instead of delegating it, hiding the standard library's superfluous-header warning;
 and it implemented no `Unwrap`, so wrapping silently cost a handler flushing and hijacking. The wrapper
 here records the first status, always delegates, and implements `Unwrap` so `http.ResponseController`
 reaches through it. Seeding the recorded status with 200 covers the handler that writes a body without
 calling `WriteHeader`, which removes the need to intercept `Write` at all.
 
-Every request logs at info. Treating a 5xx as an error record means knowing whether the status came from
-the application's own failure, and that judgment belongs to the error mapping below, not to the
-middleware. The duration attribute is a `slog.Duration`, which the JSON handler renders as nanoseconds; a
+Every request logs at info on the normal path; a panicking handler logs its record at error level with
+the panic value attached, then the panic continues to net/http's recovery. Treating a 5xx as an error
+record means knowing whether the status came from the application's own failure, and that judgment
+belongs to the error mapping below, not to the middleware. The duration attribute is a `slog.Duration`, which the JSON handler renders as nanoseconds; a
 `duration_ms` float would suit dashboards better and waits for an observability consumer to ask.
 
 ## What the HTTP layer still needs
@@ -104,4 +106,4 @@ Deferred deliberately, each waiting on a consumer that would validate its shape:
 - **The success envelope and the page response** — the shape a handler returns on success, and the
   HTTP-side pagination that pairs with `database`'s query vocabulary.
 
-None of these revise the current surface; all of them add to it.
+None of these revise the current API; all of them add to it.

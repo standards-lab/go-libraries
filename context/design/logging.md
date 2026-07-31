@@ -5,16 +5,17 @@ this note holds the reasoning behind it.
 
 ## The standard library owns the vocabulary
 
-Both baselines hand-rolled the same level enum: a string type, a `Valid()` switch over four constants, and
-a `Slog()` switch converting it to `slog.Level`. None of that was needed. `slog.Level` already implements
+Earlier implementations of this layer hand-rolled the same level enum: a string type, a `Valid()` switch
+over four constants, and a `Slog()` switch converting it to `slog.Level`. None of that was needed. `slog.Level` already implements
 `UnmarshalText`, which upper-cases the name before matching and accepts offsets such as `warn+2`, so the
 whole vocabulary — including its case-insensitivity — is a delegation rather than a switch.
 
 So `logging` defines no level vocabulary. `Level.Slog` is a call into `slog`, and validation is that call
 returning no error. Adding a level, or accepting a spelling `slog` accepts, costs this package nothing.
-`Format` stays hand-written because the handler choice is ours and `slog` has no opinion about it.
+`Format` stays hand-written because the handler choice belongs to this package and `slog` has no opinion
+about it.
 
-This is the same finding that produced `config.Duration`: the baseline's ceremony was a type the standard
+This is the same finding that produced `config.Duration`: the ceremony re-implemented a type the standard
 library already had.
 
 ## Level is a string because slog.Level's zero value is info
@@ -28,7 +29,8 @@ and a zero one is left alone. A layer setting the level to info would be silentl
 nil means unset; it was rejected for putting a pointer field in an otherwise value-shaped configuration,
 and for moving the rejection of a bad value from `Finalize` to JSON parsing.
 
-`Finalize` normalizes after reading the environment and before validating, so a value arriving from a file
+`Finalize` normalizes before applying defaults — so a blank or whitespace-only value takes the default
+rather than failing validation — and again after reading the environment, so a value arriving from a file
 or a shell in any casing lands on the canonical form the constants use.
 
 ## The writer is a parameter, not configuration
@@ -41,7 +43,7 @@ what makes the package testable on its output rather than on the handler's concr
 built a `Config` literal and skipped it falls back to info — a misconfiguration costs the process a level,
 not its logs.
 
-## The package constructs a logger; it does not carry one
+## The package constructs a logger; it does not hold one
 
 `logging` is transport-agnostic and sits below the HTTP layer. It does not define the request logger, and
 `auth` will not define the authentication middleware: a middleware belongs to the transport that consumes

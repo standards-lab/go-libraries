@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -29,13 +30,22 @@ func recvOrFail[T any](t *testing.T, ch <-chan T, what string) T {
 	}
 }
 
-// startTestServer binds a server on an ephemeral port. Port 0 survives because
-// NewServer takes the configuration as written — Finalize, which would replace
-// it with the default, belongs to the load path.
+// finalized fills the config's unset fields with defaults so NewServer, which
+// expects a finalized config, can be handed explicit values — an explicit
+// Port 0 survives Finalize and means an ephemeral port.
+func finalized(t *testing.T, cfg web.Config) web.Config {
+	t.Helper()
+	if err := cfg.Finalize(); err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	return cfg
+}
+
+// startTestServer binds a server on an ephemeral port.
 func startTestServer(t *testing.T, handler http.Handler) *web.Server {
 	t.Helper()
 
-	srv := web.NewServer(web.Config{Host: "127.0.0.1"}, handler)
+	srv := web.NewServer(finalized(t, web.Config{Host: "127.0.0.1", Port: ptr(0)}), handler)
 	if err := srv.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -48,7 +58,7 @@ func startTestServer(t *testing.T, handler http.Handler) *web.Server {
 }
 
 func TestServer_AddrBeforeStartIsConfigured(t *testing.T) {
-	srv := web.NewServer(web.Config{Host: "127.0.0.1", Port: 8080}, http.NewServeMux())
+	srv := web.NewServer(finalized(t, web.Config{Host: "127.0.0.1", Port: ptr(8080)}), http.NewServeMux())
 	if got, want := srv.Addr(), "127.0.0.1:8080"; got != want {
 		t.Errorf("Addr() = %q, want %q", got, want)
 	}
@@ -106,7 +116,7 @@ func TestServer_StartReportsBindFailure(t *testing.T) {
 		t.Fatalf("parse port %q: %v", port, err)
 	}
 
-	srv := web.NewServer(web.Config{Host: host, Port: p}, http.NewServeMux())
+	srv := web.NewServer(finalized(t, web.Config{Host: host, Port: ptr(p)}), http.NewServeMux())
 	err = srv.Start()
 	if err == nil {
 		t.Fatal("Start returned nil for an occupied port")
@@ -200,5 +210,81 @@ func TestServer_ErrClosesAfterCleanShutdown(t *testing.T) {
 		}
 	case <-time.After(failsafe):
 		t.Fatal("Err() was not closed after shutdown")
+	}
+}
+
+func TestServer_ShutdownBeforeStartLeavesServerUsable(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /ping", func(w http.ResponseWriter, _ *http.Request) {
+		_ = web.WriteJSON(w, http.StatusOK, map[string]string{"status": "pong"})
+	})
+	srv := web.NewServer(finalized(t, web.Config{Host: "127.0.0.1", Port: ptr(0)}), mux)
+
+	ctx, cancel := context.WithTimeout(context.Background(), failsafe)
+	defer cancel()
+
+	err := srv.Shutdown(ctx)
+	if err == nil {
+		t.Fatal("Shutdown before Start returned nil")
+	}
+	if !strings.Contains(err.Error(), "web: server not started") {
+		t.Fatalf("error = %v, want it to contain %q", err, "web: server not started")
+	}
+
+	if err := srv.Start(); err != nil {
+		t.Fatalf("Start after early Shutdown: %v", err)
+	}
+
+	resp, err := http.Get("http://" + srv.Addr() + "/ping")
+	if err != nil {
+		t.Fatalf("GET /ping: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want 200", resp.StatusCode)
+	}
+
+	if err := srv.Shutdown(ctx); err != nil {
+		t.Errorf("Shutdown after Start: %v", err)
+	}
+}
+
+func TestServer_WiresReadHeaderTimeoutFromConfig(t *testing.T) {
+	cfg := finalized(t, web.Config{
+		Host:              "127.0.0.1",
+		Port:              ptr(0),
+		ReadHeaderTimeout: dur(100 * time.Millisecond),
+	})
+	srv := web.NewServer(cfg, http.NewServeMux())
+	if err := srv.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), failsafe)
+		defer cancel()
+		_ = srv.Shutdown(ctx)
+	})
+
+	conn, err := net.Dial("tcp", srv.Addr())
+	if err != nil {
+		t.Fatalf("dial %s: %v", srv.Addr(), err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	// Send an unfinished header block and never complete it; the configured
+	// ReadHeaderTimeout must close the connection well before the failsafe.
+	if _, err := conn.Write([]byte("GET / HTTP/1.1\r\nHost: example.test\r\n")); err != nil {
+		t.Fatalf("write partial request: %v", err)
+	}
+	if err := conn.SetReadDeadline(time.Now().Add(failsafe)); err != nil {
+		t.Fatalf("set read deadline: %v", err)
+	}
+
+	// EOF or a reset both mean the server closed the connection in time; only
+	// the client-side deadline expiring means the timeout was not enforced.
+	_, err = io.ReadAll(conn)
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		t.Fatal("the connection stayed open past the failsafe; ReadHeaderTimeout was not wired")
 	}
 }

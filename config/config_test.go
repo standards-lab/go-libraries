@@ -171,6 +171,88 @@ func TestLoad_CustomFilenameAndPattern(t *testing.T) {
 	}
 }
 
+func TestLoad_InvalidOverlayPattern(t *testing.T) {
+	for _, pattern := range []string{"%s.json", "config.%s.%s.%s.json"} {
+		t.Run(pattern, func(t *testing.T) {
+			_, err := config.Load[testConfig](config.Options{
+				Dir:            t.TempDir(),
+				OverlayPattern: pattern,
+			})
+			if err == nil {
+				t.Fatal("Load returned nil error for a malformed overlay pattern")
+			}
+			if !strings.Contains(err.Error(), "invalid overlay pattern") {
+				t.Errorf("error = %v, want it to mention the invalid overlay pattern", err)
+			}
+		})
+	}
+}
+
+func TestLoad_SameFieldPrecedence(t *testing.T) {
+	t.Run("secrets overlay beats all four layers", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, dir, "config.json", `{"host":"base"}`)
+		writeFile(t, dir, "config.prod.json", `{"host":"env-overlay"}`)
+		writeFile(t, dir, "secrets.json", `{"host":"secrets"}`)
+		writeFile(t, dir, "secrets.prod.json", `{"host":"secrets-overlay"}`)
+		t.Setenv(envSelector, "prod")
+
+		cfg, err := config.Load[testConfig](config.Options{Dir: dir, EnvVar: envSelector})
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.Host != "secrets-overlay" {
+			t.Errorf("Host = %q, want secrets-overlay (last layer wins)", cfg.Host)
+		}
+	})
+
+	t.Run("secrets beat the env overlay", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, dir, "config.prod.json", `{"host":"env-overlay"}`)
+		writeFile(t, dir, "secrets.json", `{"host":"secrets"}`)
+		t.Setenv(envSelector, "prod")
+
+		cfg, err := config.Load[testConfig](config.Options{Dir: dir, EnvVar: envSelector})
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.Host != "secrets" {
+			t.Errorf("Host = %q, want secrets (secrets load after the env overlay)", cfg.Host)
+		}
+	})
+}
+
+func TestLoad_CustomSecretsName(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "creds.json", `{"secrets":{"token":"cred-token"}}`)
+	writeFile(t, dir, "secrets.json", `{"secrets":{"token":"default-token"}}`)
+
+	cfg, err := config.Load[testConfig](config.Options{Dir: dir, SecretsName: "creds.json"})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Secrets.Token != "cred-token" {
+		t.Errorf("Token = %q, want cred-token (custom secrets name replaces the default)", cfg.Secrets.Token)
+	}
+}
+
+func TestLoad_ReadErrorPropagates(t *testing.T) {
+	dir := t.TempDir()
+	// A directory where a file is expected fails the read with something other
+	// than ErrNotExist, which must surface rather than being skipped.
+	if err := os.Mkdir(filepath.Join(dir, "config.json"), 0o755); err != nil {
+		t.Fatalf("mkdir config.json: %v", err)
+	}
+
+	_, err := config.Load[testConfig](config.Options{Dir: dir})
+	if err == nil {
+		t.Fatal("Load returned nil error for an unreadable config file")
+	}
+	if !strings.Contains(err.Error(), "read") {
+		t.Errorf("error = %v, want it wrapped as a read error", err)
+	}
+}
+
 func TestLoad_MalformedJSON(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "config.json", `{"host": "base"`) // truncated

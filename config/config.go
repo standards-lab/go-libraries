@@ -49,8 +49,19 @@ func (o Options) overlay(name, env string) string {
 	return fmt.Sprintf(o.OverlayPattern, stem, env)
 }
 
+func (o Options) validate() error {
+	if probe := o.overlay("proble.json", "env"); strings.Contains(probe, "%!") {
+		return fmt.Errorf("invalid overlay pattern %q", o.OverlayPattern)
+	}
+	return nil
+}
+
 func Load[T any, PT Config[T]](opts Options) (PT, error) {
 	opts.withDefaults()
+
+	if err := opts.validate(); err != nil {
+		return nil, err
+	}
 
 	var env string
 	if opts.EnvVar != "" {

@@ -3,8 +3,11 @@ package web_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/standards-lab/go-libraries/web"
@@ -104,5 +107,96 @@ func TestRequestLogger_ResponseControllerReachesTheWriter(t *testing.T) {
 	}
 	if !rec.Flushed {
 		t.Error("the underlying recorder was not flushed")
+	}
+}
+
+func TestRequestLogger_WriterSupportsReadFrom(t *testing.T) {
+	var isReaderFrom bool
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, isReaderFrom = w.(io.ReaderFrom)
+		_, _ = io.Copy(w, strings.NewReader("streamed body"))
+	})
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	rec := probe(web.Chain(handler, web.RequestLogger(logger)), "/")
+
+	if !isReaderFrom {
+		t.Error("the wrapped writer does not implement io.ReaderFrom")
+	}
+	if got := rec.Body.String(); got != "streamed body" {
+		t.Errorf("body = %q, want %q", got, "streamed body")
+	}
+
+	var out map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &out); err != nil {
+		t.Fatalf("unmarshal %q: %v", buf.String(), err)
+	}
+	if got := out["status"]; got != float64(http.StatusOK) {
+		t.Errorf("status = %v, want 200", got)
+	}
+}
+
+func TestRequestLogger_PanicLogsAtErrorAndRepanics(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	handler := web.Chain(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic("boom")
+	}), web.RequestLogger(logger))
+
+	var recovered any
+	func() {
+		defer func() { recovered = recover() }()
+		probe(handler, "/orders/7")
+	}()
+
+	if recovered != "boom" {
+		t.Fatalf("recovered %v, want the panic to propagate as boom", recovered)
+	}
+
+	var out map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &out); err != nil {
+		t.Fatalf("unmarshal %q: %v", buf.String(), err)
+	}
+	for _, tc := range []struct {
+		key  string
+		want any
+	}{
+		{"msg", "request"},
+		{"level", "ERROR"},
+		{"panic", "boom"},
+		{"path", "/orders/7"},
+	} {
+		if got := out[tc.key]; got != tc.want {
+			t.Errorf("%s = %v, want %v", tc.key, got, tc.want)
+		}
+	}
+}
+
+func TestRequestLogger_HijackThroughWrapper(t *testing.T) {
+	hijackErr := make(chan error, 1)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		conn, bw, err := http.NewResponseController(w).Hijack()
+		hijackErr <- err
+		if err != nil {
+			return
+		}
+		_, _ = bw.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+		_ = bw.Flush()
+		_ = conn.Close()
+	})
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	ts := httptest.NewServer(web.Chain(handler, web.RequestLogger(logger)))
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL)
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if err := <-hijackErr; err != nil {
+		t.Errorf("Hijack through the wrapper: %v", err)
 	}
 }

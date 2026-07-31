@@ -1,11 +1,11 @@
 # go-libraries
 
-The standards-lab organization's Go reference libraries. This is the library level of the organization's
+The Standards Lab organization's Go reference libraries. This is the library level of the organization's
 reference architecture: a worked example of how to design, layer, and independently version shared
-libraries, built with the marathon workflow so the workflow itself is battle-tested in the process.
+libraries, built with the marathon workflow so the workflow itself is exercised in the process.
 
-The libraries are the capability boundary. The standard first materializes here as code; the abstractions
-live in the libraries.
+The libraries are the capability boundary: the standard first appears here as code, and the abstractions
+live here.
 
 ## What we're building toward
 
@@ -32,10 +32,11 @@ Broad and shallow; detail is added when a capability is about to be built.
 
 Base library packages:
 
-- **lifecycle** — the process-lifecycle foundation every long-running consumer builds on: concurrent
-  startup, a readiness signal, and timeout-bounded graceful shutdown. Its phases are cold start (boot and
-  registration), hot start (subsystems warming while readiness is still false), and graceful shutdown.
-  First to be built; see `reset.md`.
+- **lifecycle** — process lifecycle for long-running consumers: concurrent startup, a readiness signal,
+  and timeout-bounded graceful shutdown. Conceptually, cold start initializes objects from configuration
+  so their state is valid (the `/healthz` side), and hot start brings the long-running services up until
+  they are ready to receive requests (the `/readyz` side). Built; the code and its `doc.go` are
+  authoritative.
 - **config** — layered configuration: a base file, environment overlays, and `secrets.json`, resolved
   through a merge/finalize contract each capability's config implements.
 - **logging** — the `*slog.Logger` a process writes through, built from a configuration that takes part in
@@ -54,7 +55,7 @@ Base library packages:
   readiness signal), and the authorization enforcement point.
 
 The set is provisional, not a commitment — see `concepts/module-set.md`. Each capability is settled when
-it is built. `lifecycle`, `config`, `logging`, and a `web` carrying the bootstrap, the health surface, and
+it is built. `lifecycle`, `config`, `logging`, and a `web` with the bootstrap, the health endpoints, and
 the middleware chain are in; the remaining capabilities follow as they are reached, and providers are
 scaffolded only when built.
 
