@@ -27,6 +27,7 @@ func (c *Config) Merge(src *Config) {
 }
 
 func (c *Config) Finalize() error {
+	c.normalize()
 	c.applyDefaults()
 	c.applyEnv()
 	c.normalize()

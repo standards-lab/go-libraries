@@ -1,8 +1,9 @@
 // Package lifecycle coordinates process startup, readiness, and graceful shutdown.
 //
-// A [Coordinator] derives its root context from a context the caller provides, runs
-// registered startup hooks concurrently, tracks a single readiness signal, and drives
-// a two-phase shutdown bounded by a timeout.
+// A [Coordinator] moves through five phases: registration (startup hooks running),
+// waiting (inside [Coordinator.WaitForStartup]), running (ready), draining (inside
+// [Coordinator.Shutdown]), and stopped. Each call in the API is legal in specific
+// phases, and the transitions between them are what the coordinator guarantees.
 //
 // # Context ownership
 //
@@ -15,27 +16,36 @@
 // # Startup
 //
 // [Coordinator.OnStartup] registers work that runs concurrently from the moment it is
-// registered. [Coordinator.WaitForStartup] blocks until every startup hook has
-// returned and then marks the coordinator ready. Startup hooks return no error: a hook
-// that cannot do its job fails the process directly, by panicking or exiting, so the
-// coordinator stays a pure orchestrator with no startup error path.
+// registered, and it panics once [Coordinator.WaitForStartup] has been entered:
+// registration belongs to the composition root's setup phase, and a late registration
+// is a programming error. [Coordinator.WaitForStartup] blocks until every startup
+// hook has returned and then marks the coordinator ready. Startup hooks return no
+// error: a hook that cannot do its job fails the process directly, by panicking or
+// exiting.
 //
 // # Readiness
 //
-// [Coordinator.Ready] reports whether startup has completed and shutdown has not begun.
-// It is false until [Coordinator.WaitForStartup] returns, true afterward, and false
-// again once [Coordinator.Shutdown] starts, so a readiness probe reports a draining
-// process as not ready. [Coordinator] satisfies [ReadinessChecker], the contract a
-// /readyz endpoint consumes.
+// [Coordinator.Ready] reports whether the coordinator is running: true once
+// [Coordinator.WaitForStartup] returns, and false again the moment
+// [Coordinator.Shutdown] begins — including when a shutdown overtakes a
+// WaitForStartup still in flight — so a readiness probe reports a draining or
+// stopped process as not ready. [Coordinator] satisfies [ReadinessChecker], the
+// contract a /readyz endpoint consumes.
 //
 // # Shutdown
 //
-// [Coordinator.Shutdown] runs in two phases. It first cancels the root context, so work
-// watching [Coordinator.Context] stops taking on new work. It then invokes each
-// [Coordinator.OnShutdown] hook concurrently, passing a fresh drain context bounded by
-// the timeout. The drain context is derived from [context.Background], not the cancelled
-// root, so cleanup has the whole timeout to finish. Shutdown returns nil once every hook
-// returns, or an error if the timeout elapses first. Shutdown hooks need no cancellation
-// guard of their own; the coordinator invokes them only after the root context is
-// already cancelled.
+// [Coordinator.Shutdown] runs in two phases. It first cancels the root context, so
+// work watching [Coordinator.Context] stops taking on new work. It then invokes each
+// [Coordinator.OnShutdown] hook concurrently, passing a fresh drain context bounded
+// by the timeout. The drain context derives from [context.Background], so cleanup
+// has the whole timeout regardless of the cancelled root. Registering a hook once
+// shutdown has begun panics.
+//
+// The hooks run exactly once: the first Shutdown call drives the drain, and a
+// repeated call blocks until it completes and returns the same error. With no
+// registered hooks Shutdown returns nil. Completion within the timeout always
+// returns nil; the timeout error wraps [context.DeadlineExceeded]. A timed-out
+// Shutdown returns while its unfinished hooks continue on the expired drain
+// context — the coordinator cannot stop a goroutine — so hooks that honor their
+// context stop promptly.
 package lifecycle

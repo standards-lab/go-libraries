@@ -5,9 +5,9 @@ its `doc.go` are authoritative for the package surface.
 
 ## A loader in the base library, not a per-app convention
 
-The baseline left configuration as a per-package *convention* — each capability shipped a
-`Config`/`Env`/`Merge`/`Finalize` set, but there was no shared interface and no loader, so every consumer
-hand-wrote the same file-layering `Load` (base file, environment overlay, secrets, then finalize). The
+Earlier implementations of this layer left configuration as a per-package convention — each capability
+shipped a `Config`/`Env`/`Merge`/`Finalize` set, but there was no shared interface and no loader, so every
+consumer hand-wrote the same file-layering `Load` (base file, environment overlay, secrets, then finalize). The
 `config` package makes that loader a real base primitive: a single generic `Load` that every consumer
 calls, parameterized by the filenames and the environment-selector variable rather than reimplemented.
 The capabilities keep owning their own config types and merge/finalize behavior; what moves into the base
@@ -50,13 +50,14 @@ environment overrides `Finalize` reads win over every file.
 
 Environment overrides are structured, not scattered `os.Getenv` calls. A capability pairs its config with
 an `Env` struct whose fields hold the variable names its `Finalize` reads, and composes those names with
-`config.EnvName(prefix, parts...)` — which upper-cases, drops empty segments, and joins with underscores.
+`config.EnvName(prefix, parts...)` — which upper-cases each segment, collapses separators to single
+underscores, drops empty segments, and joins with underscores.
 Passing the names in through an `Env` value keeps the capability free of any one application's prefix, and
 the struct is uniformly named `Env` across capabilities.
 
 ## Configuration is ephemeral
 
 A configuration exists to initialize subsystems, not to be retained. A composition root loads it,
-constructs subsystems from the values it carries, and discards it; runtime code holds the values it needs,
-not the configuration. This keeps the point at which a setting is read fixed at startup, and lets a
+constructs subsystems from its values, and discards it; runtime code holds the values it needs, not the
+configuration. This keeps the point at which a setting is read fixed at startup, and lets a
 subsystem be constructed in a test from plain values without assembling a whole configuration graph.

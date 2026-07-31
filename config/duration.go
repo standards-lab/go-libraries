@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -29,15 +30,23 @@ func (d Duration) MarshalJSON() ([]byte, error) {
 }
 
 func (d *Duration) UnmarshalJSON(data []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
 	var value any
-	if err := json.Unmarshal(data, &value); err != nil {
+	if err := dec.Decode(&value); err != nil {
 		return err
 	}
 	switch v := value.(type) {
+	case nil:
+		return nil
 	case string:
 		return d.Set(v)
-	case float64:
-		*d = Duration(time.Duration(v))
+	case json.Number:
+		n, err := v.Int64()
+		if err != nil {
+			return fmt.Errorf("invalid duration %s: a bare number is integer nanoseconds; use the string form (e.g. %q) for fractions", data, "1.5s")
+		}
+		*d = Duration(n)
 		return nil
 	default:
 		return fmt.Errorf("invalid duration: %s", data)

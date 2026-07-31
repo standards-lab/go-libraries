@@ -1,16 +1,16 @@
 # go-libraries
 
-Go reference libraries for Standards Lab — layered building blocks for modern cloud-native enterprise
+Go reference libraries for Standards Lab — layered building blocks for cloud-native enterprise
 services.
 
 The repository holds one base library: a single Go module rooted at
 `github.com/standards-lab/go-libraries`. Each capability is a package inside that module, and all of them
 are versioned and released together.
 
-Providers that depend on a third-party SDK are separate modules in nested directories, such as
-`database/postgres`. Each one is named for the system it targets and is released on its own schedule, so a
-consumer that needs one provider does not download the others. The base library itself has no third-party
-dependencies.
+Providers that depend on a third-party SDK will be separate modules in nested directories, such as
+`database/postgres` — each named for the system it targets and released on its own schedule, so a
+consumer that needs one provider does not download the others. None exist yet. The base library takes at
+most near-stdlib dependencies; today it has none.
 
 ## Packages
 

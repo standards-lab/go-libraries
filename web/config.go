@@ -20,36 +20,40 @@ const (
 )
 
 type Config struct {
-	Host              string          `json:"host"`
-	Port              int             `json:"port"`
-	ReadTimeout       config.Duration `json:"read_timeout"`
-	ReadHeaderTimeout config.Duration `json:"read_header_timeout"`
-	WriteTimeout      config.Duration `json:"write_timeout"`
-	IdleTimeout       config.Duration `json:"idle_timeout"`
-	Env               Env             `json:"-"`
+	Host              string           `json:"host"`
+	Port              *int             `json:"port"`
+	ReadTimeout       *config.Duration `json:"read_timeout"`
+	ReadHeaderTimeout *config.Duration `json:"read_header_timeout"`
+	WriteTimeout      *config.Duration `json:"write_timeout"`
+	IdleTimeout       *config.Duration `json:"idle_timeout"`
+	Env               Env              `json:"-"`
 }
 
 func (c *Config) Addr() string {
-	return net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
+	port := 0
+	if c.Port != nil {
+		port = *c.Port
+	}
+	return net.JoinHostPort(c.Host, strconv.Itoa(port))
 }
 
 func (c *Config) Merge(src *Config) {
 	if src.Host != "" {
 		c.Host = src.Host
 	}
-	if src.Port != 0 {
+	if src.Port != nil {
 		c.Port = src.Port
 	}
-	if src.ReadTimeout != 0 {
+	if src.ReadTimeout != nil {
 		c.ReadTimeout = src.ReadTimeout
 	}
-	if src.ReadHeaderTimeout != 0 {
+	if src.ReadHeaderTimeout != nil {
 		c.ReadHeaderTimeout = src.ReadHeaderTimeout
 	}
-	if src.WriteTimeout != 0 {
+	if src.WriteTimeout != nil {
 		c.WriteTimeout = src.WriteTimeout
 	}
-	if src.IdleTimeout != 0 {
+	if src.IdleTimeout != nil {
 		c.IdleTimeout = src.IdleTimeout
 	}
 }
@@ -66,20 +70,20 @@ func (c *Config) applyDefaults() {
 	if c.Host == "" {
 		c.Host = defaultHost
 	}
-	if c.Port == 0 {
-		c.Port = defaultPort
+	if c.Port == nil {
+		c.Port = intPtr(defaultPort)
 	}
-	if c.ReadTimeout == 0 {
-		c.ReadTimeout = config.Duration(defaultReadTimeout)
+	if c.ReadTimeout == nil {
+		c.ReadTimeout = durationPtr(defaultReadTimeout)
 	}
-	if c.ReadHeaderTimeout == 0 {
-		c.ReadHeaderTimeout = config.Duration(defaultReadHeaderTimeout)
+	if c.ReadHeaderTimeout == nil {
+		c.ReadHeaderTimeout = durationPtr(defaultReadHeaderTimeout)
 	}
-	if c.WriteTimeout == 0 {
-		c.WriteTimeout = config.Duration(defaultWriteTimeout)
+	if c.WriteTimeout == nil {
+		c.WriteTimeout = durationPtr(defaultWriteTimeout)
 	}
-	if c.IdleTimeout == 0 {
-		c.IdleTimeout = config.Duration(defaultIdleTimeout)
+	if c.IdleTimeout == nil {
+		c.IdleTimeout = durationPtr(defaultIdleTimeout)
 	}
 }
 
@@ -92,7 +96,7 @@ func (c *Config) applyEnv() error {
 		if err != nil {
 			return fmt.Errorf("%s: %w", c.Env.Port, err)
 		}
-		c.Port = port
+		c.Port = &port
 	}
 	if err := setDurationFromEnv(&c.ReadTimeout, c.Env.ReadTimeout); err != nil {
 		return err
@@ -107,27 +111,42 @@ func (c *Config) applyEnv() error {
 }
 
 func (c *Config) validate() error {
-	if c.Port < 1 || c.Port > 65535 {
-		return fmt.Errorf("invalid port: %d", c.Port)
+	if *c.Port < 0 || *c.Port > 65535 {
+		return fmt.Errorf("invalid port: %d", *c.Port)
 	}
-	if c.ReadTimeout < 0 {
+	if *c.ReadTimeout < 0 {
 		return fmt.Errorf("invalid read_timeout: %s", c.ReadTimeout)
 	}
-	if c.ReadHeaderTimeout < 0 {
+	if *c.ReadHeaderTimeout < 0 {
 		return fmt.Errorf("invalid read_header_timeout: %s", c.ReadHeaderTimeout)
 	}
-	if c.WriteTimeout < 0 {
+	if *c.WriteTimeout < 0 {
 		return fmt.Errorf("invalid write_timeout: %s", c.WriteTimeout)
 	}
-	if c.IdleTimeout < 0 {
+	if *c.IdleTimeout < 0 {
 		return fmt.Errorf("invalid idle_timeout: %s", c.IdleTimeout)
 	}
 	return nil
 }
 
-func setDurationFromEnv(dest *config.Duration, name string) error {
-	if err := dest.Set(os.Getenv(name)); err != nil {
+func setDurationFromEnv(dest **config.Duration, name string) error {
+	v := os.Getenv(name)
+	if v == "" {
+		return nil
+	}
+	var d config.Duration
+	if err := d.Set(v); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
+	*dest = &d
 	return nil
+}
+
+func intPtr(v int) *int {
+	return &v
+}
+
+func durationPtr(v time.Duration) *config.Duration {
+	d := config.Duration(v)
+	return &d
 }

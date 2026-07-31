@@ -16,19 +16,10 @@ vendor SDK) — worth a possible follow-up to the org-level context.
 
 ## Base library packages
 
-- **lifecycle** — built (`lifecycle/`). The process-lifecycle coordinator: the caller provides the root
-  context (`New(ctx)`), startup hooks run concurrently, and shutdown is two-phase — cancel the root, then
-  invoke each hook with a fresh timeout-bounded drain context. Startup hooks carry no error handling (a
-  hook that cannot do its job fails the process). Readiness is non-monotonic (ready after startup,
-  not-ready once shutdown begins) and satisfies `ReadinessChecker`, the contract `web`'s `/readyz`
-  consumes. The settled conventions are in `design/conventions.md`; the code and its `doc.go` are now
-  authoritative for the package shape.
-- **config** — built (`config/`). The layered configuration loader and the contract each capability's
-  config implements: a generic `Load` layers base + environment overlay + `secrets.json` + secrets
-  overlay onto a caller's type, which supplies `Merge`/`Finalize`; `EnvName` composes override-variable
-  names. In the baseline this was a per-module convention with no shared machinery and no secrets file;
-  here it became the real base primitive the consumers had hand-rolled. Settled in `design/config.md`;
-  the code and its `doc.go` are now authoritative for the package shape.
+- **lifecycle** — built (`lifecycle/`); the code and its `doc.go` are authoritative for the package
+  shape. The settled conventions are in `design/conventions.md`.
+- **config** — built (`config/`); the code and its `doc.go` are authoritative for the package shape.
+  Settled in `design/config.md`.
 - **auth** — `Authenticator`/`TokenSource` behavior interfaces; providers (Keycloak self-hosted, Entra
   and others managed) as nested sub-modules. Authorization (RBAC/ABAC) as an in-package `auth/authz`,
   with the enforcement point in `web`.
@@ -36,13 +27,9 @@ vendor SDK) — worth a possible follow-up to the org-level context.
   mssql) as nested sub-modules.
 - **storage** — the `storage.Store` interface; providers per API family (S3, Azure Blob) as nested
   sub-modules.
-- **logging** — built (`logging/`). A `Config`/`Env` implementing the configuration contract and a `New`
-  returning a `*slog.Logger` over a caller-supplied writer. The trigger this note set — a consumer needing
-  it — fired when `web`'s request logger arrived, and both baselines had hand-rolled the same level
-  parsing. The package turned out to be thinner than the baseline's: `slog.Level` already parses the
-  vocabulary, so only the config seam and the handler choice remained. Settled in `design/logging.md`;
-  the code and its `doc.go` are now authoritative for the package shape.
-- **web** — partly built (`web/`). The bootstrap, the health surface, and the middleware chain are in: a
+- **logging** — built (`logging/`); the code and its `doc.go` are authoritative for the package shape.
+  Settled in `design/logging.md`.
+- **web** — partly built (`web/`). The bootstrap, the health endpoints, and the middleware chain are in: a
   `Server` that binds before it serves, a `Config` implementing the configuration contract, RFC 9457
   problem responses, a JSON writer, `/healthz` and `/readyz` aggregating `lifecycle.ReadinessChecker`
   participants, and `Middleware`/`Chain` with a `RequestLogger`. It is one flat package — a split is
@@ -58,7 +45,8 @@ Named for the target API/system, one per API rather than per deployment: `databa
 Azure managed); `auth/keycloak` (self-hosted) ↔ `auth/entra` (managed). The self-hosted↔managed seam is a
 config change within a provider wherever the API is shared. Selection is direct typed construction — each
 provider owns a `Provider` constant and the consumer switches over it at the composition root; no registry
-and no `Register()`. (The baseline built a registry, then removed it as unused; we start without it.)
+and no `Register()`. (The baseline built a registry, then removed it as unused; this repository starts
+without one.)
 
 ## Decisions carried into the layout
 
@@ -77,7 +65,7 @@ and no `Register()`. (The baseline built a registry, then removed it as unused; 
 
 ## Open questions to settle as each capability is built
 
-- The exact members of `database.DB` and `storage.Store` (lifecycle + access surface).
+- The exact members of `database.DB` and `storage.Store` (lifecycle and access methods).
 - The persistence query vocabulary shape (`database`) and the HTTP page-response shape (`web`).
 - Final storage provider API choices, and whether both the S3 and Azure Blob families are demonstrated.
 - The shape of `web`'s success envelope. Problem responses and the middleware chain are settled

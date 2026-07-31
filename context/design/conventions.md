@@ -7,9 +7,10 @@ The patterns settled for this repository's libraries.
 A capability defines its interface (and shared types) as a package in the base library, using near-stdlib
 dependencies only. Each concrete implementation whose weight comes from a third-party SDK lives in a
 nested sub-module with its own `go.mod` that pins that SDK, so a consumer that needs only the interface
-never pulls the SDKs. The `database` package defines the `database.DB` interface; `database/postgres` and
-`database/mssql` are separate sub-modules pinning their respective drivers. The `auth` package defines
-`Authenticator`/`TokenSource`; `auth/keycloak` and `auth/entra` are separate sub-modules.
+never pulls the SDKs. For example: a `database` package defines the `database.DB` interface, with
+`database/postgres` and `database/mssql` as separate sub-modules pinning their respective drivers; an
+`auth` package defines `Authenticator`/`TokenSource`, with `auth/keycloak` and `auth/entra` as
+sub-modules.
 
 ## Near-stdlib base, heavy dependencies isolated in providers
 
@@ -53,11 +54,11 @@ ecosystem's context-ownership convention. The composition root owns the root con
 every subsystem observes through `Coordinator.Context`. The coordinator installs no signal handlers of its
 own, so a long-running service and a short-lived command share one context-derivation story.
 
-Shutdown is two-phase and coordinator-driven: `Shutdown` cancels the root context, then invokes each
-registered hook with a fresh, timeout-bounded drain context derived from `context.Background()`, so cleanup
-is not pre-cancelled. A shutdown hook needs no cancellation guard of its own — it takes the drain context
-and runs its graceful drain (`http.Server.Shutdown`, an in-flight wait) against it. Long-lived work that
-must observe cancellation during operation watches `Coordinator.Context` instead.
+Shutdown is two-phase and coordinator-driven: cancel the root context, then drain each hook against a
+fresh timeout-bounded context derived from `context.Background()`, so cleanup is not pre-cancelled. A
+shutdown hook needs no cancellation guard of its own — it runs its graceful drain
+(`http.Server.Shutdown`, an in-flight wait) against the drain context. Long-lived work that must observe
+cancellation during operation watches `Coordinator.Context` instead.
 
 Readiness is non-monotonic: the coordinator is ready once startup completes and not-ready again once
 shutdown begins, so a `/readyz` probe reports a draining process as unavailable. A capability exposes its
