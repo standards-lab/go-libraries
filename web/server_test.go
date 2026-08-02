@@ -46,7 +46,7 @@ func startTestServer(t *testing.T, handler http.Handler) *web.Server {
 	t.Helper()
 
 	srv := web.NewServer(finalized(t, web.Config{Host: "127.0.0.1", Port: ptr(0)}), handler)
-	if err := srv.Start(); err != nil {
+	if err := srv.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	t.Cleanup(func() {
@@ -55,6 +55,21 @@ func startTestServer(t *testing.T, handler http.Handler) *web.Server {
 		_ = srv.Shutdown(ctx)
 	})
 	return srv
+}
+
+// NewServer requires a finalized Config; the diagnostic panic names the fix
+// instead of nil-dereferencing a tri-state pointer.
+func TestNewServer_PanicsOnUnfinalizedConfig(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("NewServer with a zero Config did not panic")
+		}
+		if want := "web: Config not finalized: call Finalize before NewServer"; r != want {
+			t.Fatalf("panic = %v, want %q", r, want)
+		}
+	}()
+	web.NewServer(web.Config{}, http.NewServeMux())
 }
 
 func TestServer_AddrBeforeStartIsConfigured(t *testing.T) {
@@ -92,7 +107,7 @@ func TestServer_StartServesRequests(t *testing.T) {
 func TestServer_StartTwiceFails(t *testing.T) {
 	srv := startTestServer(t, http.NewServeMux())
 
-	if err := srv.Start(); err == nil {
+	if err := srv.Start(context.Background()); err == nil {
 		t.Fatal("the second Start returned nil")
 	}
 }
@@ -117,7 +132,7 @@ func TestServer_StartReportsBindFailure(t *testing.T) {
 	}
 
 	srv := web.NewServer(finalized(t, web.Config{Host: host, Port: ptr(p)}), http.NewServeMux())
-	err = srv.Start()
+	err = srv.Start(context.Background())
 	if err == nil {
 		t.Fatal("Start returned nil for an occupied port")
 	}
@@ -227,11 +242,11 @@ func TestServer_ShutdownBeforeStartLeavesServerUsable(t *testing.T) {
 	if err == nil {
 		t.Fatal("Shutdown before Start returned nil")
 	}
-	if !strings.Contains(err.Error(), "web: server not started") {
-		t.Fatalf("error = %v, want it to contain %q", err, "web: server not started")
+	if !strings.Contains(err.Error(), "server not started") {
+		t.Fatalf("error = %v, want it to contain %q", err, "server not started")
 	}
 
-	if err := srv.Start(); err != nil {
+	if err := srv.Start(context.Background()); err != nil {
 		t.Fatalf("Start after early Shutdown: %v", err)
 	}
 
@@ -256,7 +271,7 @@ func TestServer_WiresReadHeaderTimeoutFromConfig(t *testing.T) {
 		ReadHeaderTimeout: dur(100 * time.Millisecond),
 	})
 	srv := web.NewServer(cfg, http.NewServeMux())
-	if err := srv.Start(); err != nil {
+	if err := srv.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	t.Cleanup(func() {

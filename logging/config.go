@@ -11,12 +11,16 @@ const (
 	defaultFormat = FormatText
 )
 
+// Config selects the level and format the process logger is built with. Env
+// names the environment variables Finalize reads; it is excluded from JSON, so
+// only the composition root can set it.
 type Config struct {
 	Level  Level  `json:"level"`
 	Format Format `json:"format"`
 	Env    Env    `json:"-"`
 }
 
+// Merge overlays src's set fields onto the receiver.
 func (c *Config) Merge(src *Config) {
 	if src.Level != "" {
 		c.Level = src.Level
@@ -26,6 +30,9 @@ func (c *Config) Merge(src *Config) {
 	}
 }
 
+// Finalize normalizes the values (trimming and lower-casing), applies
+// defaults (info, text), applies the environment overrides named by Env, and
+// validates.
 func (c *Config) Finalize() error {
 	c.normalize()
 	c.applyDefaults()

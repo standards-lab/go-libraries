@@ -4,6 +4,38 @@ All notable changes to the base library (`github.com/standards-lab/go-libraries`
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). This changelog covers the
 base module only; each provider sub-module keeps its own.
 
+## [v0.3.0] - 2026-08-02
+
+Composition ergonomics, driven by the template baseline — the library's first end-to-end
+consumer.
+
+### Changed
+
+- **`lifecycle.Coordinator` is a `Run`-based host** (breaking): consumers declare hooks and
+  monitors while the coordinator waits, then make one blocking `Run(ctx, drainTimeout)` call that
+  owns the whole sequence. `New` takes no context (the caller's signal context goes to `Run`);
+  `OnStartup` and `OnShutdown` hooks are `func(context.Context) error`, launched concurrently by
+  `Run` rather than at registration; new `OnReady` hooks fire once startup succeeds, and new
+  `Monitor` channels end the run on their first non-nil error. A startup failure drains what did
+  start and never flips readiness; `Run` returns nil exactly when a signal-driven exit drained
+  cleanly, and otherwise the joined errors wrapped by phase (`startup:`, `run:`, `shutdown:`).
+  `WaitForStartup`, `Shutdown`, and `Context` are gone — `Run` owns them.
+- **`web.Server.Start` takes a context** (breaking): the bind goes through `net.ListenConfig`,
+  so it is cancellable, and `Start`/`Shutdown` now carry the lifecycle hook signature —
+  `lc.OnStartup(srv.Start)` and `lc.OnShutdown(srv.Shutdown)` register as bare method values.
+- **`web.RequestLogger` demotes successful probe requests to debug**: a 2xx on `/healthz` or
+  `/readyz` is orchestrator heartbeat and stays out of info-level production logs; a failing
+  probe still logs at info.
+- **`web.NewServer` panics diagnostically on an unfinalized `Config`** — naming the fix — instead
+  of nil-dereferencing a tri-state pointer.
+- Error strings name their operation and operand, never their package (`server not started`
+  drops its `web:` prefix); package prefixes remain on panic messages only.
+
+### Added
+
+- `config.Duration.Duration()` returns the value as a `time.Duration`, removing the conversion
+  at call sites such as `lc.Run(ctx, cfg.ShutdownTimeout.Duration())`.
+
 ## [v0.2.0] - 2026-07-31
 
 ### Changed

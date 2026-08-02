@@ -7,10 +7,17 @@ import (
 )
 
 const (
+	// ProblemMediaType is the RFC 9457 problem document media type.
 	ProblemMediaType = "application/problem+json"
+	// ProblemTypeBlank is the type of a problem with no semantics beyond its
+	// status code.
 	ProblemTypeBlank = "about:blank"
 )
 
+// Problem is an RFC 9457 problem document. Type identifies the problem's
+// semantics and is the member a client branches on; this package mints no
+// type URIs of its own, so a consumer supplies one here or through the extras
+// of [WriteProblemWith].
 type Problem struct {
 	Type     string `json:"type"`
 	Title    string `json:"title,omitempty"`
@@ -19,6 +26,8 @@ type Problem struct {
 	Instance string `json:"instance,omitempty"`
 }
 
+// Write sends the problem, applying defaults: a zero Status becomes 500, an
+// empty Type becomes about:blank, and an empty Title takes the status phrase.
 func (p Problem) Write(w http.ResponseWriter) error {
 	p.applyDefaults()
 
@@ -39,6 +48,8 @@ func (p *Problem) applyDefaults() {
 	}
 }
 
+// WriteProblem sends a problem for the request, with Instance set to the
+// request path and [Problem.Write]'s defaults applied.
 func WriteProblem(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -53,6 +64,9 @@ func WriteProblem(
 	}.Write(w)
 }
 
+// WriteProblemWith is [WriteProblem] with extra members copied over the
+// document. Extras may add or override any member except status, which always
+// matches the status line.
 func WriteProblemWith(
 	w http.ResponseWriter,
 	r *http.Request,

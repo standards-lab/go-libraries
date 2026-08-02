@@ -120,17 +120,30 @@ func TestReadiness_NilCheckerIsNotReady(t *testing.T) {
 }
 
 // TestReadiness_TracksCoordinator walks the readiness signal through a whole
-// process lifetime: warming up, ready, and draining. The middle and last
+// process lifetime: warming up, ready, and stopped. The middle and last
 // transitions are what make /readyz useful to an orchestrator.
 func TestReadiness_TracksCoordinator(t *testing.T) {
-	lc := lifecycle.New(context.Background())
+	lc := lifecycle.New()
 
 	mux := http.NewServeMux()
 	web.RegisterHealth(mux, web.Check{Name: "lifecycle", Checker: lc})
 
+	started := make(chan struct{})
 	release := make(chan struct{})
-	lc.OnStartup(func() { <-release })
+	lc.OnStartup(func(context.Context) error {
+		close(started)
+		<-release
+		return nil
+	})
+	ready := make(chan struct{})
+	lc.OnReady(func() { close(ready) })
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- lc.Run(ctx, 2*time.Second) }()
+
+	recvOrFail(t, started, "startup hook to start")
 	if got := probe(mux, web.ReadyPath).Code; got != http.StatusServiceUnavailable {
 		t.Errorf("status = %d during startup, want 503", got)
 	}
@@ -140,18 +153,19 @@ func TestReadiness_TracksCoordinator(t *testing.T) {
 	}
 
 	close(release)
-	lc.WaitForStartup()
+	recvOrFail(t, ready, "coordinator to become ready")
 
 	if got := probe(mux, web.ReadyPath).Code; got != http.StatusOK {
 		t.Errorf("status = %d after startup, want 200", got)
 	}
 
-	if err := lc.Shutdown(2 * time.Second); err != nil {
-		t.Fatalf("Shutdown: %v", err)
+	cancel()
+	if err := recvOrFail(t, done, "Run to return"); err != nil {
+		t.Fatalf("Run: %v", err)
 	}
 
 	if got := probe(mux, web.ReadyPath).Code; got != http.StatusServiceUnavailable {
-		t.Errorf("status = %d while draining, want 503", got)
+		t.Errorf("status = %d after Run returned, want 503", got)
 	}
 }
 

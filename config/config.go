@@ -15,17 +15,31 @@ const (
 	defaultOverlayPattern = "%s.%s.json"
 )
 
+// Config is the contract a configuration type's pointer implements to take
+// part in [Load]: Merge overlays another instance's set fields onto the
+// receiver, and Finalize applies defaults, reads environment-variable
+// overrides, and validates.
 type Config[T any] interface {
 	*T
 	Merge(src *T)
 	Finalize() error
 }
 
+// Options locates and names the files [Load] reads. The zero value reads
+// config.json and secrets.json from the current directory with no environment
+// overlays.
 type Options struct {
-	Dir            string
-	EnvVar         string
-	BaseName       string
-	SecretsName    string
+	// Dir is the directory the files are read from; "." when empty.
+	Dir string
+	// EnvVar names the environment variable whose value selects the overlay
+	// environment. Empty, or naming an unset variable, skips both overlays.
+	EnvVar string
+	// BaseName is the base file name; "config.json" when empty.
+	BaseName string
+	// SecretsName is the secrets file name; "secrets.json" when empty.
+	SecretsName string
+	// OverlayPattern produces an overlay name from a file's stem and the
+	// environment; "%s.%s.json" when empty.
 	OverlayPattern string
 }
 
@@ -56,6 +70,11 @@ func (o Options) validate() error {
 	return nil
 }
 
+// Load reads the layered configuration files opts names — base, environment
+// overlay, secrets, secrets overlay, later files winning — merges each one
+// that exists onto a zero value of T, finalizes the result, and returns it. A
+// missing file is skipped; a read failure, malformed JSON, a malformed overlay
+// pattern, or a Finalize error stops the load.
 func Load[T any, PT Config[T]](opts Options) (PT, error) {
 	opts.withDefaults()
 

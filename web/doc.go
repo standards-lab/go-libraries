@@ -4,12 +4,14 @@
 //
 // # Server
 //
-// [NewServer] wraps an http.Server built from a [Config] and a handler the
-// caller composes. [Server.Start] binds the listener on the calling goroutine
-// and only then serves in the background, so a bind failure is returned to the
-// caller instead of being lost in a goroutine. [Server.Addr] reports the bound
-// address once started; a configured port 0 binds an ephemeral port, and Addr
-// reads back the assignment.
+// [NewServer] wraps an http.Server built from a finalized [Config] and a
+// handler the caller composes; an unfinalized Config panics with the fix
+// named. [Server.Start] binds the listener on the calling goroutine — the
+// context bounding the bind — and only then serves in the background, so a
+// bind failure is returned to the caller instead of being lost in a
+// goroutine. [Server.Addr] reports the bound address once started; a
+// configured port 0 binds an ephemeral port, and Addr reads back the
+// assignment.
 //
 // [Server.Err] belongs to a successful serve session: after Start returns nil,
 // a serve failure arrives on it, and the channel closes when serving stops.
@@ -21,20 +23,17 @@
 // # Lifecycle wiring
 //
 // The package registers no lifecycle hooks of its own and holds no shutdown
-// timeout. A composition root wires [Server.Start] as a startup hook and
-// [Server.Shutdown] as a shutdown hook, taking the coordinator's
-// timeout-bounded drain context directly:
+// timeout. [Server.Start] and [Server.Shutdown] carry the lifecycle package's
+// hook signature, and [Server.Err] is a monitorable source, so a composition
+// root wires the server as bare method values:
 //
-//	lc.OnStartup(func() {
-//		if err := srv.Start(); err != nil {
-//			log.Fatalf("http: %v", err)
-//		}
-//	})
-//	lc.OnShutdown(func(ctx context.Context) {
-//		if err := srv.Shutdown(ctx); err != nil {
-//			log.Printf("http: shutdown: %v", err)
-//		}
-//	})
+//	lc.OnStartup(srv.Start)
+//	lc.OnShutdown(srv.Shutdown)
+//	lc.Monitor(srv.Err())
+//
+// A bind failure fails the coordinator's startup, a serve failure ends its
+// run, and the shutdown hook receives the timeout-bounded drain context
+// [Server.Shutdown] consumes directly.
 //
 // # Configuration
 //
@@ -71,9 +70,12 @@
 // [RequestLogger] emits one record per request through a *slog.Logger the
 // caller supplies — method, path, status, duration, and remote address — at
 // info level, or at error level with the panic value attached when the handler
-// panics (the panic then continues to net/http's recovery). Every request logs
-// at info on the normal path; the middleware does not judge whether a 5xx was
-// the application's own failure.
+// panics (the panic then continues to net/http's recovery). A successful
+// request to [HealthPath] or [ReadyPath] logs at debug — orchestrator
+// heartbeat, visible in development and quiet in production — while a failing
+// probe stays at info. Beyond that the middleware does not judge status codes:
+// whether a 5xx was the application's own failure belongs to the error
+// mapping, not here.
 //
 // The middleware wraps the ResponseWriter to capture the status. The wrapper
 // records the first status written, implements Unwrap so flushing and hijacking

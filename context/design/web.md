@@ -11,21 +11,23 @@ the same wrapper around `http.Server` — the same fifty lines in every service,
 the goroutine it serves from, so a taken port or a bad address was logged by a goroutine nobody was
 watching while startup carried on and readiness reported healthy with nothing listening.
 
-`Server` splits that in two. The bind happens on the calling goroutine and its failure is a returned
-error; serving happens in the background. Because the composition root registers `Start` as a lifecycle
-startup hook, and a startup hook that cannot do its job fails the process, a bind failure now stops
-startup. Binding first also makes the bound address knowable, so a caller can ask for port 0 and read back
-what it got — which is what lets tests bind without racing a fixed port.
+`Server` splits that in two. The bind happens on the calling goroutine — bounded by the context `Start`
+takes — and its failure is a returned error; serving happens in the background. Because the composition
+root registers `Start` as a lifecycle startup hook and a startup hook's error fails the coordinator's
+startup, a bind failure stops startup before readiness ever flips. Binding first also makes the bound
+address knowable, so a caller can ask for port 0 and read back what it got — which is what lets tests
+bind without racing a fixed port.
 
-A serve failure after startup is a value, not a log line: it goes to a buffered channel the root selects
-on and decides policy for. That decision holds now that `logging` exists: a library that logged the
-failure would be choosing a policy the composition root owns, and a root that ignores the channel is no
-worse off than one that logged and carried on.
+A serve failure after startup is a value, not a log line: it goes to a buffered channel the root hands
+to the coordinator as a monitored source, so the first failure ends the run and surfaces in `Run`'s
+returned error. That decision holds now that `logging` exists: a library that logged the failure would
+be choosing a policy the composition root owns.
 
-`web` registers no lifecycle hooks and holds no shutdown timeout. The coordinator cancels the root
-context and then invokes each hook with a fresh timeout-bounded drain context, which `Shutdown(ctx)`
-consumes directly — so a hand-rolled private `context.WithTimeout` and a `<-lc.Context().Done()` wait
-have no counterpart here. `web` imports `lifecycle` only for the `ReadinessChecker` interface `/readyz`
+`web` registers no lifecycle hooks and holds no shutdown timeout, but `Start` and `Shutdown` carry the
+lifecycle hook signature, so the root registers them as bare method values. The coordinator cancels the
+run context and then invokes each hook with a fresh timeout-bounded drain context, which `Shutdown(ctx)`
+consumes directly — so a hand-rolled private `context.WithTimeout` and a cancellation guard have no
+counterpart here. `web` imports `lifecycle` only for the `ReadinessChecker` interface `/readyz`
 consumes.
 
 ## One flat package
@@ -89,10 +91,14 @@ here records the first status, always delegates, and implements `Unwrap` so `htt
 reaches through it. Seeding the recorded status with 200 covers the handler that writes a body without
 calling `WriteHeader`, which removes the need to intercept `Write` at all.
 
-Every request logs at info on the normal path; a panicking handler logs its record at error level with
-the panic value attached, then the panic continues to net/http's recovery. Treating a 5xx as an error
-record means knowing whether the status came from the application's own failure, and that judgment
-belongs to the error mapping below, not to the middleware. The duration attribute is a `slog.Duration`, which the JSON handler renders as nanoseconds; a
+A request logs at info on the normal path, with one carve-out: a successful probe request logs at
+debug, because an orchestrator hits `/healthz` and `/readyz` every few seconds forever and that
+heartbeat would otherwise dominate production logs — while a failing probe stays at info, since
+readiness flapping is exactly what an operator greps for. A panicking handler logs its record at error
+level with the panic value attached, then the panic continues to net/http's recovery. Beyond the probe
+carve-out the middleware does not judge status codes: treating a 5xx as an error record means knowing
+whether the status came from the application's own failure, and that judgment belongs to the error
+mapping below, not to the middleware. The duration attribute is a `slog.Duration`, which the JSON handler renders as nanoseconds; a
 `duration_ms` float would suit dashboards better and waits for an observability consumer to ask.
 
 ## What the HTTP layer still needs

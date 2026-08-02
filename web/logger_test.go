@@ -137,6 +137,57 @@ func TestRequestLogger_WriterSupportsReadFrom(t *testing.T) {
 	}
 }
 
+// A successful probe request is orchestrator heartbeat, not traffic: it logs
+// at debug, so a production logger at info stays quiet.
+func TestRequestLogger_ProbeSuccessLogsAtDebug(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	probe(web.Chain(web.Liveness(), web.RequestLogger(logger)), web.HealthPath)
+
+	var out map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &out); err != nil {
+		t.Fatalf("unmarshal %q: %v", buf.String(), err)
+	}
+	if got := out["level"]; got != "DEBUG" {
+		t.Errorf("level = %v, want DEBUG", got)
+	}
+	if got := out["path"]; got != web.HealthPath {
+		t.Errorf("path = %v, want %s", got, web.HealthPath)
+	}
+}
+
+func TestRequestLogger_ProbeSuccessSilentAtInfoLevel(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	probe(web.Chain(web.Liveness(), web.RequestLogger(logger)), web.HealthPath)
+
+	if buf.Len() != 0 {
+		t.Errorf("a successful probe logged through an info-level handler: %s", buf.String())
+	}
+}
+
+// A failing probe is signal — readiness flapping must stay visible at info.
+func TestRequestLogger_ProbeFailureLogsAtInfo(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	handler := web.Chain(
+		web.Readiness(web.Check{Name: "lifecycle"}),
+		web.RequestLogger(logger),
+	)
+	probe(handler, web.ReadyPath)
+
+	var out map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &out); err != nil {
+		t.Fatalf("unmarshal %q: %v", buf.String(), err)
+	}
+	if got := out["level"]; got != "INFO" {
+		t.Errorf("level = %v, want INFO", got)
+	}
+	if got := out["status"]; got != float64(http.StatusServiceUnavailable) {
+		t.Errorf("status = %v, want 503", got)
+	}
+}
+
 func TestRequestLogger_PanicLogsAtErrorAndRepanics(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))

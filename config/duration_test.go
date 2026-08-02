@@ -158,3 +158,9 @@ func TestDuration_String(t *testing.T) {
 		t.Errorf("String() = %q, want 1m30s", got)
 	}
 }
+
+func TestDuration_Duration(t *testing.T) {
+	if got, want := config.Duration(90*time.Second).Duration(), 90*time.Second; got != want {
+		t.Errorf("Duration() = %s, want %s", got, want)
+	}
+}

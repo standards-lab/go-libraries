@@ -9,6 +9,10 @@ const envSeparatorPattern = `[^A-Z0-9]+`
 
 var envSeparators = regexp.MustCompile(envSeparatorPattern)
 
+// EnvName composes an environment-variable name from a prefix and parts: each
+// segment upper-cases, runs of characters outside A-Z and 0-9 collapse to
+// single underscores, and empty segments drop out, so EnvName("app", "db",
+// "host") is "APP_DB_HOST" and a caller can vary the prefix freely.
 func EnvName(prefix string, parts ...string) string {
 	segments := make([]string, 0, len(parts)+1)
 	if s := sanitize(prefix); s != "" {
