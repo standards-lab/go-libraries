@@ -4,6 +4,17 @@ All notable changes to the base library (`github.com/standards-lab/go-libraries`
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). This changelog covers the
 base module only; each provider sub-module keeps its own.
 
+## [v0.3.1] - 2026-08-02
+
+### Changed
+
+- **`web.Server.Shutdown` before a successful `Start` is a no-op** that leaves the server
+  startable. Under `Run`'s drain-what-started semantics, the drain after a failed startup
+  invokes every shutdown hook — including the server's, whose bind never succeeded — so a
+  never-started drain is a normal path, not misuse. A held-port startup failure now reports the
+  single `startup: listen …` error instead of joining a `shutdown: server not started` red
+  herring.
+
 ## [v0.3.0] - 2026-08-02
 
 Composition ergonomics, driven by the template baseline — the library's first end-to-end
