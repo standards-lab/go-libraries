@@ -1,7 +1,7 @@
 # Configuration
 
-How the libraries load and shape configuration. The `config` package holds the machinery; the code and
-its `doc.go` are authoritative for the package surface.
+How the libraries load and finalize configuration. The `config` package holds the machinery; the code and
+its `doc.go` are authoritative for the package API.
 
 ## A loader in the base library, not a per-app convention
 

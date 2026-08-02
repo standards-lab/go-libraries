@@ -24,7 +24,7 @@ middleware pulling an OpenTelemetry SDK, or a rate limiter pulling a Redis clien
 that makes `database/postgres` a sub-module, applied one level down, and it is the trigger `design/web.md`
 already describes in the abstract.
 
-If it fires, the shape is `web/middleware` as a sub-package that imports `web` for problem writing — one
+If it fires, the split is `web/middleware` as a sub-package that imports `web` for problem writing — one
 direction, no cycle, since `web` itself needs no middleware. A dependency heavy enough to belong in a
 sub-module rather than a sub-package would go there instead, on the ordinary rule.
 

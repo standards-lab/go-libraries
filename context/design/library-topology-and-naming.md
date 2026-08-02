@@ -13,7 +13,7 @@ module makes those inter-package edges ordinary imports with no version coordina
 
 A concrete provider whose weight comes from a third-party SDK is a nested sub-module with its own
 `go.mod`, versioned and released on its own schedule. Providers are where independent versioning earns its
-cost: each pins a distinct, heavy dependency surface, and a consumer selects one without pulling the
+cost: each pins its own heavy vendor SDK, and a consumer selects one without pulling the
 others. The base library carries none of that weight (see `conventions.md`), so depending on it to reach
 one capability is effectively free even though it contains the others.
 

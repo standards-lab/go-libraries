@@ -17,8 +17,8 @@ vendor SDK) — worth a possible follow-up to the org-level context.
 ## Base library packages
 
 - **lifecycle** — built (`lifecycle/`); the code and its `doc.go` are authoritative for the package
-  shape. The settled conventions are in `design/conventions.md`.
-- **config** — built (`config/`); the code and its `doc.go` are authoritative for the package shape.
+  API. The settled conventions are in `design/conventions.md`.
+- **config** — built (`config/`); the code and its `doc.go` are authoritative for the package API.
   Settled in `design/config.md`.
 - **auth** — `Authenticator`/`TokenSource` behavior interfaces; providers (Keycloak self-hosted, Entra
   and others managed) as nested sub-modules. Authorization (RBAC/ABAC) as an in-package `auth/authz`,
@@ -27,7 +27,7 @@ vendor SDK) — worth a possible follow-up to the org-level context.
   mssql) as nested sub-modules.
 - **storage** — the `storage.Store` interface; providers per API family (S3, Azure Blob) as nested
   sub-modules.
-- **logging** — built (`logging/`); the code and its `doc.go` are authoritative for the package shape.
+- **logging** — built (`logging/`); the code and its `doc.go` are authoritative for the package API.
   Settled in `design/logging.md`.
 - **web** — partly built (`web/`). The bootstrap, the health endpoints, and the middleware chain are in: a
   `Server` that binds before it serves, a `Config` implementing the configuration contract, RFC 9457
@@ -35,8 +35,8 @@ vendor SDK) — worth a possible follow-up to the org-level context.
   participants, and `Middleware`/`Chain` with a `RequestLogger`. It is one flat package — a split is
   earned by dependency weight, not by topic — and it defines no problem type URIs, leaving that
   vocabulary to consumers. Settled in `design/web.md`; the code and its `doc.go` are authoritative for the
-  package shape. Still to come: the rest of the middleware set, error-to-status mapping, the success
-  envelope, the HTTP query-param and page-response shapes, and the authorization enforcement point.
+  package API. Still to come: the rest of the middleware set, error-to-status mapping, the success
+  envelope, the HTTP query-param and page-response contracts, and the authorization enforcement point.
 
 ## Provider sub-modules (provisional — scaffolded only when built)
 
@@ -66,8 +66,8 @@ without one.)
 ## Open questions to settle as each capability is built
 
 - The exact members of `database.DB` and `storage.Store` (lifecycle and access methods).
-- The persistence query vocabulary shape (`database`) and the HTTP page-response shape (`web`).
+- The persistence query vocabulary (`database`) and the HTTP page-response contract (`web`).
 - Final storage provider API choices, and whether both the S3 and Azure Blob families are demonstrated.
-- The shape of `web`'s success envelope. Problem responses and the middleware chain are settled
+- The structure of `web`'s success envelope. Problem responses and the middleware chain are settled
   (`design/web.md`); the envelope waits for a domain handler.
 - Whether middleware earns a package of its own, and when — see `concepts/middleware-split.md`.

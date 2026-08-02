@@ -44,7 +44,7 @@ uniform noun. A capability that manages a lifecycle-bound client exposes a singl
 (`database.DB`, `storage.Store`); a behavior-only capability exposes behavior interfaces
 (`auth.Authenticator`, `auth.TokenSource`). Such an interface integrates with the `lifecycle` package at
 the composition root — its start/stop wired through the coordinator, its readiness satisfying the
-readiness contract — rather than re-declaring the lifecycle shape itself.
+readiness contract — rather than re-declaring the coordinator's phases itself.
 
 ## Process lifecycle and context ownership
 
