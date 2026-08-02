@@ -1,6 +1,6 @@
 # The HTTP layer
 
-How the `web` package is shaped. The code and its `doc.go` are authoritative for the package surface;
+The design of the `web` package. The code and its `doc.go` are authoritative for the package API;
 this note holds the reasoning behind it and the intent for the parts not yet built.
 
 ## The bootstrap belongs in the library
@@ -30,7 +30,7 @@ consumes.
 
 ## One flat package
 
-`web` is a single package, and stays one. An earlier shape made `web` its own module with its concerns as
+`web` is a single package, and stays one. An earlier design made `web` its own module with its concerns as
 sub-packages, but that split was organizational: `problem`, `respond`, and `health` are all near-stdlib,
 and none carries weight the rest of `web` shouldn't. So the rule that separates the base library from
 provider sub-modules applies one level down — a split is earned by dependency weight, not by topic.
@@ -71,7 +71,7 @@ it keeps a hand-typed title from drifting away from the status code it accompani
 
 ## Middleware
 
-`Middleware` is `func(http.Handler) http.Handler` — the shape the ecosystem already uses — and `Chain`
+`Middleware` is `func(http.Handler) http.Handler` — the signature the ecosystem already uses — and `Chain`
 composes a set of them in argument order, so the first argument sees the request first. Both live in
 `web` under the one-flat-package rule; `concepts/middleware-split.md` records what would earn them a
 package of their own.
@@ -97,13 +97,13 @@ belongs to the error mapping below, not to the middleware. The duration attribut
 
 ## What the HTTP layer still needs
 
-Deferred deliberately, each waiting on a consumer that would validate its shape:
+Deferred deliberately, each waiting on a consumer that would validate its API:
 
 - **The rest of the middleware set** — `Auth`/`Authorize` wait on `auth` and `auth/authz`; CORS waits on a
   browser client; a recovery handler and a request ID wait for a service to need them.
 - **Error mapping** — the domain-error-to-status matchers that turn a returned error into a problem
   response. Additive to the problem writers; needs a domain handler to exercise it.
-- **The success envelope and the page response** — the shape a handler returns on success, and the
+- **The success envelope and the page response** — the JSON structure a handler returns on success, and the
   HTTP-side pagination that pairs with `database`'s query vocabulary.
 
 None of these revise the current API; all of them add to it.

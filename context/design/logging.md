@@ -1,6 +1,6 @@
 # Logging
 
-How the `logging` package is shaped. The code and its `doc.go` are authoritative for the package surface;
+The design of the `logging` package. The code and its `doc.go` are authoritative for the package API;
 this note holds the reasoning behind it.
 
 ## The standard library owns the vocabulary
@@ -26,7 +26,7 @@ The one place the standard library's type could not be used directly is the conf
 and a zero one is left alone. A layer setting the level to info would be silently ignored.
 
 `Level` is therefore a string whose `""` means unset. The alternative considered was `*slog.Level`, where
-nil means unset; it was rejected for putting a pointer field in an otherwise value-shaped configuration,
+nil means unset; it was rejected for putting a pointer field in an otherwise value-typed configuration,
 and for moving the rejection of a bad value from `Finalize` to JSON parsing.
 
 `Finalize` normalizes before applying defaults — so a blank or whitespace-only value takes the default

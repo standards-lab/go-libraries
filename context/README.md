@@ -17,7 +17,7 @@ live here.
 - A single base library, versioned and released as one artifact, plus provider sub-modules released
   independently.
 
-## How the repository is shaped
+## Repository topology
 
 The repository is one base library — a single Go module rooted here — plus a set of provider sub-modules.
 Every capability is a package inside the base library; the packages co-evolve and release together. The
@@ -51,7 +51,7 @@ Base library packages:
   provider, an Azure Blob provider) as nested sub-modules, each serving a local emulator or a managed
   cloud by configuration.
 - **web** — the HTTP layer: a stdlib `net/http` server, RFC 9457 problem responses, a success envelope,
-  middleware, liveness/readiness (`/healthz`, `/readyz`, where `/readyz` surfaces the `lifecycle`
+  middleware, liveness/readiness (`/healthz`, `/readyz`, where `/readyz` reports the `lifecycle`
   readiness signal), and the authorization enforcement point.
 
 The set is provisional, not a commitment — see `concepts/module-set.md`. Each capability is settled when
