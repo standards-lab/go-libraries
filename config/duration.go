@@ -7,12 +7,24 @@ import (
 	"time"
 )
 
+// Duration is a time.Duration that takes part in JSON configuration: it
+// unmarshals from the string form time.ParseDuration accepts ("1m30s") or
+// from a bare integer number of nanoseconds, and marshals as the string form.
 type Duration time.Duration
 
+// Duration returns the value as a time.Duration.
+func (d Duration) Duration() time.Duration {
+	return time.Duration(d)
+}
+
+// String returns the value in time.Duration's string form.
 func (d Duration) String() string {
 	return time.Duration(d).String()
 }
 
+// Set parses value with time.ParseDuration and stores the result. An empty
+// value is a no-op, so an unset environment variable leaves the receiver
+// unchanged.
 func (d *Duration) Set(value string) error {
 	if value == "" {
 		return nil
@@ -25,10 +37,14 @@ func (d *Duration) Set(value string) error {
 	return nil
 }
 
+// MarshalJSON encodes the duration as its string form.
 func (d Duration) MarshalJSON() ([]byte, error) {
 	return json.Marshal(time.Duration(d).String())
 }
 
+// UnmarshalJSON decodes a duration string, a bare integer number of
+// nanoseconds, or null, which leaves the value unchanged. A fractional number
+// is rejected toward the string form.
 func (d *Duration) UnmarshalJSON(data []byte) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()

@@ -19,6 +19,11 @@ const (
 	defaultIdleTimeout       = 2 * time.Minute
 )
 
+// Config holds the server's address and timeouts. The port and timeouts are
+// tri-state pointers: nil is unset and takes the default, while an explicit
+// zero survives the load and means what it says — a disabled timeout, or an
+// ephemeral port. Env names the environment variables Finalize reads; it is
+// excluded from JSON, so only the composition root can set it.
 type Config struct {
 	Host              string           `json:"host"`
 	Port              *int             `json:"port"`
@@ -29,6 +34,7 @@ type Config struct {
 	Env               Env              `json:"-"`
 }
 
+// Addr joins the host and port; an unset port reads as 0.
 func (c *Config) Addr() string {
 	port := 0
 	if c.Port != nil {
@@ -37,6 +43,7 @@ func (c *Config) Addr() string {
 	return net.JoinHostPort(c.Host, strconv.Itoa(port))
 }
 
+// Merge overlays src's set fields onto the receiver.
 func (c *Config) Merge(src *Config) {
 	if src.Host != "" {
 		c.Host = src.Host
@@ -58,6 +65,8 @@ func (c *Config) Merge(src *Config) {
 	}
 }
 
+// Finalize applies defaults, applies the environment overrides named by Env,
+// and validates.
 func (c *Config) Finalize() error {
 	c.applyDefaults()
 	if err := c.applyEnv(); err != nil {
@@ -127,6 +136,14 @@ func (c *Config) validate() error {
 		return fmt.Errorf("invalid idle_timeout: %s", c.IdleTimeout)
 	}
 	return nil
+}
+
+func (c *Config) finalized() bool {
+	return c.Port != nil &&
+		c.ReadTimeout != nil &&
+		c.ReadHeaderTimeout != nil &&
+		c.WriteTimeout != nil &&
+		c.IdleTimeout != nil
 }
 
 func setDurationFromEnv(dest **config.Duration, name string) error {

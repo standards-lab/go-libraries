@@ -53,7 +53,8 @@
 // unmarshals from the string form time.ParseDuration accepts ("1m30s") or from
 // a bare integer number of nanoseconds; a fractional number is rejected — the
 // string form expresses sub-second durations — and JSON null leaves the value
-// unchanged. It marshals as the string form.
+// unchanged. It marshals as the string form, and [Duration.Duration] returns
+// the value as a time.Duration where an API wants the standard type.
 //
 // # Ephemeral lifecycle
 //

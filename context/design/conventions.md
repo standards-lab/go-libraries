@@ -48,22 +48,28 @@ readiness contract — rather than re-declaring the coordinator's phases itself.
 
 ## Process lifecycle and context ownership
 
-The `lifecycle` package coordinates startup, readiness, and graceful shutdown, and it fixes the
-ecosystem's context-ownership convention. The composition root owns the root context — it traps signals
-(`signal.NotifyContext`) and passes the context to `lifecycle.New`, which derives the cancellable context
-every subsystem observes through `Coordinator.Context`. The coordinator installs no signal handlers of its
-own, so a long-running service and a short-lived command share one context-derivation story.
+The `lifecycle` package hosts startup, readiness, and graceful shutdown, and it fixes the ecosystem's
+context-ownership convention. The composition root owns the signal context — it traps signals
+(`signal.NotifyContext`) and passes the context to `Coordinator.Run`, the one blocking call that owns
+the sequence. Hooks and monitors are declared while the coordinator waits, and nothing executes before
+`Run`; the coordinator installs no signal handlers of its own.
 
-Shutdown is two-phase and coordinator-driven: cancel the root context, then drain each hook against a
-fresh timeout-bounded context derived from `context.Background()`, so cleanup is not pre-cancelled. A
-shutdown hook needs no cancellation guard of its own — it runs its graceful drain
-(`http.Server.Shutdown`, an in-flight wait) against the drain context. Long-lived work that must observe
-cancellation during operation watches `Coordinator.Context` instead.
+Hooks describe only what is bespoke to the service. Startup hooks run concurrently and return errors —
+a failure drains what did start and readiness never flips, so a probe cannot report a partially started
+process. The run context reaches every startup hook, and work that outlives its hook keeps watching it.
+Runtime failure is declared rather than hand-rolled: a monitored channel's first non-nil error ends the
+run.
 
-Readiness is non-monotonic: the coordinator is ready once startup completes and not-ready again once
-shutdown begins, so a `/readyz` probe reports a draining process as unavailable. A capability exposes its
-own readiness through `lifecycle.ReadinessChecker`; its leaf subsystems take a plain `context.Context`
-rather than the coordinator, keeping them usable without it.
+The drain is two-phase and coordinator-driven: the run context is cancelled, then each shutdown hook
+runs against a fresh timeout-bounded context derived from `context.Background()`, so cleanup is not
+pre-cancelled. A shutdown hook needs no cancellation guard of its own — it runs its graceful drain
+(`http.Server.Shutdown`, an in-flight wait) against the drain context and returns its error into `Run`'s
+joined result.
+
+Readiness is non-monotonic: the coordinator is ready once every startup hook succeeds and not-ready
+again the moment draining begins, so a `/readyz` probe reports a draining process as unavailable. A
+capability exposes its own readiness through `lifecycle.ReadinessChecker`; its leaf subsystems take a
+plain `context.Context` rather than the coordinator, keeping them usable without it.
 
 ## Tests: co-located and black-box
 

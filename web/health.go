@@ -6,16 +6,21 @@ import (
 	"github.com/standards-lab/go-libraries/lifecycle"
 )
 
+// The probe endpoints [RegisterHealth] mounts.
 const (
 	HealthPath = "/healthz"
 	ReadyPath  = "/readyz"
 )
 
+// Check is one named participant in the readiness aggregate. A nil Checker
+// reports not ready, so a subsystem that failed to construct fails the probe.
 type Check struct {
 	Name    string
 	Checker lifecycle.ReadinessChecker
 }
 
+// Mounter mounts a handler on a method-scoped pattern ("GET /healthz");
+// *http.ServeMux satisfies it directly.
 type Mounter interface {
 	Handle(pattern string, handler http.Handler)
 }
@@ -30,12 +35,17 @@ type readyBody struct {
 	Checks []checkResult `json:"checks,omitempty"`
 }
 
+// Liveness reports that the process is up and serving HTTP, and checks
+// nothing else.
 func Liveness() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_ = WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 }
 
+// Readiness aggregates the checks: 200 with each participant's state when all
+// are ready, and otherwise a 503 problem document naming them. Zero checks
+// report ready.
 func Readiness(checks ...Check) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		results := make([]checkResult, 0, len(checks))
@@ -69,6 +79,8 @@ func Readiness(checks ...Check) http.Handler {
 	})
 }
 
+// RegisterHealth mounts [Liveness] at GET /healthz and [Readiness] over
+// checks at GET /readyz.
 func RegisterHealth(m Mounter, checks ...Check) {
 	m.Handle("GET "+HealthPath, Liveness())
 	m.Handle("GET "+ReadyPath, Readiness(checks...))

@@ -5,8 +5,10 @@ import (
 	"net/http"
 )
 
+// JSONMediaType is the media type [WriteJSON] sets.
 const JSONMediaType = "application/json"
 
+// WriteJSON sends data as JSON with the given status.
 func WriteJSON(
 	w http.ResponseWriter,
 	status int,
