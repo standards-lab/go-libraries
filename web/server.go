@@ -88,15 +88,16 @@ func (s *Server) Err() <-chan error {
 }
 
 // Shutdown drains the server gracefully via http.Server.Shutdown. Before a
-// successful Start it returns an error and leaves the server startable; once
-// it has served, a Server is single-use.
+// successful Start it is a no-op that leaves the server startable, so a
+// lifecycle drain after a failed startup passes through cleanly; once it has
+// served, a Server is single-use.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
 	started := s.listener != nil
 	s.mu.Unlock()
 
 	if !started {
-		return errors.New("web: server not started")
+		return nil
 	}
 	return s.http.Shutdown(ctx)
 }

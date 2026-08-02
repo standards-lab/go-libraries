@@ -238,12 +238,10 @@ func TestServer_ShutdownBeforeStartLeavesServerUsable(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), failsafe)
 	defer cancel()
 
-	err := srv.Shutdown(ctx)
-	if err == nil {
-		t.Fatal("Shutdown before Start returned nil")
-	}
-	if !strings.Contains(err.Error(), "server not started") {
-		t.Fatalf("error = %v, want it to contain %q", err, "server not started")
+	// A drain after a failed startup passes through a never-started server, so
+	// Shutdown before Start is a no-op, not an error.
+	if err := srv.Shutdown(ctx); err != nil {
+		t.Fatalf("Shutdown before Start = %v, want nil", err)
 	}
 
 	if err := srv.Start(context.Background()); err != nil {

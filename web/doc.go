@@ -16,8 +16,9 @@
 // [Server.Err] belongs to a successful serve session: after Start returns nil,
 // a serve failure arrives on it, and the channel closes when serving stops.
 // http.ErrServerClosed is the expected end of a shutdown and is not reported.
-// [Server.Shutdown] before a successful Start returns an error and leaves the
-// server startable; once it has served, a Server is single-use — construct a
+// [Server.Shutdown] before a successful Start is a no-op that leaves the
+// server startable, so a lifecycle drain after a failed startup passes
+// through cleanly; once it has served, a Server is single-use — construct a
 // new one to serve again.
 //
 // # Lifecycle wiring
