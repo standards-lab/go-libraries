@@ -16,6 +16,7 @@ jobs:
       matrix:
         module:
           - "."
+          - "database/postgres"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -40,6 +41,7 @@ jobs:
       matrix:
         module:
           - "."
+          - "database/postgres"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
