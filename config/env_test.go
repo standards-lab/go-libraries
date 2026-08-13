@@ -1,7 +1,9 @@
 package config_test
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/standards-lab/go-libraries/config"
 )
@@ -31,4 +33,55 @@ func TestEnvName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSetDurationFromEnv(t *testing.T) {
+	const name = "TEST_SET_DURATION"
+
+	t.Run("set value overrides", func(t *testing.T) {
+		t.Setenv(name, "30s")
+		var dest *config.Duration
+		if err := config.SetDurationFromEnv(&dest, name); err != nil {
+			t.Fatalf("SetDurationFromEnv: %v", err)
+		}
+		if dest == nil || dest.Duration() != 30*time.Second {
+			t.Errorf("dest = %v, want 30s", dest)
+		}
+	})
+
+	t.Run("unset name is a no-op", func(t *testing.T) {
+		prior := config.Duration(time.Minute)
+		dest := &prior
+		if err := config.SetDurationFromEnv(&dest, name); err != nil {
+			t.Fatalf("SetDurationFromEnv: %v", err)
+		}
+		if dest != &prior {
+			t.Error("dest reassigned on unset variable, want untouched")
+		}
+	})
+
+	t.Run("empty name is a no-op", func(t *testing.T) {
+		var dest *config.Duration
+		if err := config.SetDurationFromEnv(&dest, ""); err != nil {
+			t.Fatalf("SetDurationFromEnv: %v", err)
+		}
+		if dest != nil {
+			t.Errorf("dest = %v with no variable named, want nil", dest)
+		}
+	})
+
+	t.Run("malformed value fails and names the variable", func(t *testing.T) {
+		t.Setenv(name, "not-a-duration")
+		var dest *config.Duration
+		err := config.SetDurationFromEnv(&dest, name)
+		if err == nil {
+			t.Fatal("SetDurationFromEnv accepted a malformed duration")
+		}
+		if got := err.Error(); !strings.Contains(got, name) {
+			t.Errorf("error = %q, want it to name %s", got, name)
+		}
+		if dest != nil {
+			t.Errorf("dest = %v after a failed parse, want nil", dest)
+		}
+	})
 }

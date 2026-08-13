@@ -4,6 +4,40 @@ All notable changes to the base library (`github.com/standards-lab/go-libraries`
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). This changelog covers the
 base module only; each provider sub-module keeps its own.
 
+## [v0.4.0-dev.1] - 2026-08-13
+
+The database capability's connectivity slice, planned with the reference service — the first rung
+of the data composition and CQRS ladder.
+
+### Added
+
+- **The `database` package**: the SQL data layer's dialect-neutral core. `database.New` wraps a
+  provider-constructed `*sql.DB` with the provider's `Dialect` and a finalized `Config`, applying
+  the pool settings; `Start`/`Shutdown` carry the lifecycle hook signature and register as bare
+  method values; `Ready` satisfies `lifecycle.ReadinessChecker` structurally with a live ping
+  bounded by `conn_timeout`, so a readiness probe reflects the database now — 503 during an
+  outage, healed when it returns — rather than caching boot state. Two sentinels
+  (`ErrNotReady`, `ErrConnectionFailed`) wrap in the dual form
+  `fmt.Errorf("%w: %w", sentinel, err)`; `sql.ErrNoRows` is never mapped. The `Dialect` seam
+  (name, placeholder renderer, error mapper) is the whole provider surface the base needs;
+  `MapError` is the identity at this slice, with constraint classification arriving with the
+  write surface. `Config` keeps discrete fields so the password alone rides the secrets layer;
+  `Port` has no base default — the default port is a provider fact.
+- **`database/postgres`, the first provider sub-module**, over pgx's `database/sql` adapter with
+  the driver pinned in its own `go.mod`. Construction is eager-parse, no-I/O: the connection URL
+  is composed with `net/url` (password set post-parse as a field, never in the string; empty user
+  falls back to pgx's OS-user default), `Options` keys naming connection fields are rejected, and
+  the dialect renders `$n` placeholders. `postgres.Provider` types the selection constant.
+- **`config.SetDurationFromEnv`**: the duration-from-env override shared by every capability
+  config block's Finalize pass, hoisted from per-package copies.
+
+### Changed
+
+- **`web.Config` hydrates through Go 1.26 `new(expr)` and `config.SetDurationFromEnv`**; its
+  private `intPtr`, `durationPtr`, and `setDurationFromEnv` helpers are deleted. A
+  `config.Pointer` wrapper was considered and dropped — the toolchain marks such wrappers
+  `//go:fix inline` and rewrites callers to `new(v)`.
+
 ## [v0.3.1] - 2026-08-02
 
 ### Changed

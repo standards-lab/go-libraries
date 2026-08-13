@@ -6,7 +6,7 @@ golangci-lint = "latest"
 # with the go.work use-list and the ci.yml matrix. "." is the base library;
 # provider sub-modules are added as they are built.
 [env]
-GO_MODULES = "."
+GO_MODULES = ". database/postgres"
 
 [tasks.build]
 description = "Build all modules"

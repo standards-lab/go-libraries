@@ -80,19 +80,19 @@ func (c *Config) applyDefaults() {
 		c.Host = defaultHost
 	}
 	if c.Port == nil {
-		c.Port = intPtr(defaultPort)
+		c.Port = new(defaultPort)
 	}
 	if c.ReadTimeout == nil {
-		c.ReadTimeout = durationPtr(defaultReadTimeout)
+		c.ReadTimeout = new(config.Duration(defaultReadTimeout))
 	}
 	if c.ReadHeaderTimeout == nil {
-		c.ReadHeaderTimeout = durationPtr(defaultReadHeaderTimeout)
+		c.ReadHeaderTimeout = new(config.Duration(defaultReadHeaderTimeout))
 	}
 	if c.WriteTimeout == nil {
-		c.WriteTimeout = durationPtr(defaultWriteTimeout)
+		c.WriteTimeout = new(config.Duration(defaultWriteTimeout))
 	}
 	if c.IdleTimeout == nil {
-		c.IdleTimeout = durationPtr(defaultIdleTimeout)
+		c.IdleTimeout = new(config.Duration(defaultIdleTimeout))
 	}
 }
 
@@ -107,16 +107,16 @@ func (c *Config) applyEnv() error {
 		}
 		c.Port = &port
 	}
-	if err := setDurationFromEnv(&c.ReadTimeout, c.Env.ReadTimeout); err != nil {
+	if err := config.SetDurationFromEnv(&c.ReadTimeout, c.Env.ReadTimeout); err != nil {
 		return err
 	}
-	if err := setDurationFromEnv(&c.ReadHeaderTimeout, c.Env.ReadHeaderTimeout); err != nil {
+	if err := config.SetDurationFromEnv(&c.ReadHeaderTimeout, c.Env.ReadHeaderTimeout); err != nil {
 		return err
 	}
-	if err := setDurationFromEnv(&c.WriteTimeout, c.Env.WriteTimeout); err != nil {
+	if err := config.SetDurationFromEnv(&c.WriteTimeout, c.Env.WriteTimeout); err != nil {
 		return err
 	}
-	return setDurationFromEnv(&c.IdleTimeout, c.Env.IdleTimeout)
+	return config.SetDurationFromEnv(&c.IdleTimeout, c.Env.IdleTimeout)
 }
 
 func (c *Config) validate() error {
@@ -144,26 +144,4 @@ func (c *Config) finalized() bool {
 		c.ReadHeaderTimeout != nil &&
 		c.WriteTimeout != nil &&
 		c.IdleTimeout != nil
-}
-
-func setDurationFromEnv(dest **config.Duration, name string) error {
-	v := os.Getenv(name)
-	if v == "" {
-		return nil
-	}
-	var d config.Duration
-	if err := d.Set(v); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
-	}
-	*dest = &d
-	return nil
-}
-
-func intPtr(v int) *int {
-	return &v
-}
-
-func durationPtr(v time.Duration) *config.Duration {
-	d := config.Duration(v)
-	return &d
 }
