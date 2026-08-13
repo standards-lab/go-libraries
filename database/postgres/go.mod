@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/standards-lab/go-libraries v0.3.1
+	github.com/standards-lab/go-libraries v0.4.0-dev.1
 )
 
 require (
