@@ -4,6 +4,22 @@ All notable changes to the base library (`github.com/standards-lab/go-libraries`
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). This changelog covers the
 base module only; each provider sub-module keeps its own.
 
+## [v0.5.0-dev.1] - 2026-08-14
+
+The `database/seed` package: reference-data loading as a base capability, with the format seam
+its consumers extend.
+
+### Added
+
+- **The `database/seed` package**: a seed runner over what only the consumer knows — the seed
+  file system, a typed load function per table, and the step order. `Table` binds a seed file
+  to a load function as an opaque `Step`; `Run` executes the steps in order, each in its own
+  transaction, selecting the decode `Format` by file extension and logging each step applied.
+  Formats register at construction — no registry, no `init` — and the strict `JSON` format
+  ships with the package: an unknown field or trailing content in a curated seed file fails the
+  decode. Idempotency stays in the load function's SQL, where the conflict target is known. The
+  package is stdlib-only, so the base module's dependency graph is unchanged.
+
 ## [v0.4.0] - 2026-08-14
 
 The `web` package gains its routing layer, capability configuration composes its environment
