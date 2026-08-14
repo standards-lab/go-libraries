@@ -4,10 +4,12 @@
 // # The contract
 //
 // A configuration is a type T whose pointer implements [Config]: a Merge that
-// overlays another instance's set fields onto the receiver, and a Finalize that
-// applies defaults, reads environment-variable overrides, and validates. The
-// methods stay concretely typed against T — an implementation writes
-// Merge(*T) and Finalize() error against its own type, with no type assertions.
+// overlays another instance's set fields onto the receiver, and a Finalize
+// that composes its environment override names from a prefix, applies
+// defaults, reads the overrides, and validates. The methods stay concretely
+// typed against T — an implementation writes Merge(*T) and
+// Finalize(envPrefix string) error against its own type, with no type
+// assertions.
 //
 // # Layered load
 //
@@ -19,8 +21,9 @@
 //   - a secrets file (secrets.json), and
 //   - a secrets overlay (secrets.<env>.json).
 //
-// The active environment is the value of the [Options.EnvVar] variable; when it
-// is empty, both overlays are skipped. A single [Options.OverlayPattern]
+// The active environment is the value of the [Options.EnvVar] variable —
+// named explicitly, or derived from [Options.EnvPrefix] as the prefixed "env"
+// name; when it resolves empty, both overlays are skipped. A single [Options.OverlayPattern]
 // produces both overlay names from the base and secrets stems; Load validates
 // the pattern and fails a malformed one rather than silently skipping the
 // overlays it names. Every file is optional: a missing file is skipped, so a
@@ -30,17 +33,17 @@
 // Later sources win: the secrets overlay overrides the secrets file, which
 // overrides the environment overlay, which overrides the base. A set source
 // field always wins over an unset receiver. Finalize runs once, after every
-// file has been merged.
+// file has been merged, receiving [Options.EnvPrefix].
 //
 // # Environment overrides
 //
-// A capability pairs its configuration with an Env struct naming the variables
-// its Finalize reads. Env fields are excluded from JSON, so a file cannot set
-// them: the composition root seeds a child's Env before the child's Finalize
-// runs, typically in the parent configuration's own Finalize. A direct [Load]
-// of a capability's configuration therefore applies no environment overrides;
-// once a parent has seeded the names, the overrides Finalize reads take
-// precedence over every file.
+// A capability pairs its configuration with an Env struct naming the
+// variables its Finalize reads. Env fields are excluded from JSON and are
+// output, not input: each Finalize composes its own names from the prefix it
+// receives and records them on Env for introspection. An empty prefix
+// composes no names, so nothing in the environment applies — the hermetic
+// form tests rely on — and once a prefix is supplied, the overrides Finalize
+// reads take precedence over every file.
 //
 // [EnvName] composes an environment-variable name from a prefix and parts. Each
 // segment upper-cases, and runs of characters outside A-Z and 0-9 collapse to

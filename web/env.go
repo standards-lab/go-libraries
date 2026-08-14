@@ -2,8 +2,11 @@ package web
 
 import "github.com/standards-lab/go-libraries/config"
 
-// Env names the environment variables [Config.Finalize] reads. An empty name
-// disables that one override; the zero value disables all of them.
+// Env names the environment variables [Config.Finalize] reads, composed from
+// the prefix it receives: SERVER_HOST, SERVER_PORT, and the four timeout
+// names under whatever prefix [config.EnvName] produces. An empty name
+// disables that one override; the zero value — an empty prefix — disables all
+// of them. Populated by Finalize and exposed for introspection.
 type Env struct {
 	Host              string
 	Port              string
@@ -15,8 +18,12 @@ type Env struct {
 
 // NewEnv composes the standard override names from a prefix: SERVER_HOST,
 // SERVER_PORT, and the four timeout names under whatever prefix
-// [config.EnvName] produces.
+// [config.EnvName] produces. An empty prefix returns the zero Env, disabling
+// the overrides.
 func NewEnv(prefix string) Env {
+	if prefix == "" {
+		return Env{}
+	}
 	return Env{
 		Host: config.EnvName(
 			prefix, "server", "host",

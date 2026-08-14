@@ -36,6 +36,30 @@
 // run, and the shutdown hook receives the timeout-bounded drain context
 // [Server.Shutdown] consumes directly.
 //
+// # Routing
+//
+// [Group], [Module], and [Router] compose an application's route tree. A
+// Group declares routes: a path prefix (multi-segment prefixes such as
+// "/api/v1" are first-class), a middleware stack, atomic routes, and nested
+// child groups. [NewModule] compiles a group tree once into a [Module] —
+// every route under its full pattern with its middleware baked in, group
+// stacks outermost ordered root to leaf, then per-route middleware — and
+// seals the tree, so a route registered after compilation panics instead of
+// going silently dead. [NewHandlerModule] mounts a raw handler under a prefix
+// (an embedded client application, a file server), the one case where a
+// module strips the prefix from the request.
+//
+// A [Router] dispatches to mounted modules by longest-prefix match on segment
+// boundaries, falling back to a native http.ServeMux for every path no module
+// owns. [Router.Handle] mirrors ServeMux.Handle on the native mux — *Router
+// satisfies [Mounter], so [RegisterHealth] mounts the probes there,
+// structurally outside every module's middleware — and [Router.Use] wraps the
+// whole dispatch. The effective order is router middleware, then group
+// middleware root to leaf, then route middleware, then the handler.
+// Registration mistakes — a malformed prefix, a duplicate pattern, a second
+// module at a prefix, a sealed-group mutation — panic at wiring time; nothing
+// recomposes or validates per request.
+//
 // # Configuration
 //
 // [Config] holds the host, the port, and the server's four timeouts, and
@@ -44,10 +68,10 @@
 // timeouts are pointers: nil is unset and takes the default, while an explicit
 // zero survives the load and means what it says — a disabled timeout, or an
 // ephemeral port. A file and the environment express both states identically.
-// Finalize applies defaults, then the environment overrides named by the
-// configuration's [Env] value, then validates. [NewEnv] composes the standard
-// names from a prefix; an empty name disables that one override, and a zero Env
-// means no environment overrides at all.
+// Finalize composes its environment override names from the prefix it
+// receives (via [NewEnv], recorded on [Env] for introspection), applies
+// defaults, reads the overrides, and validates; an empty prefix disables the
+// overrides.
 //
 // # Health
 //

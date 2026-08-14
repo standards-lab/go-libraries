@@ -28,8 +28,8 @@ const (
 // varies by provider and auth mode; the password rides the secrets layer of
 // [config.Load] rather than a committed file. Options carries dialect-specific
 // connection keys (postgres: sslmode) passed through to the provider. Env
-// names the environment variables Finalize reads; it is excluded from JSON,
-// so only the composition root can set it.
+// records the environment-variable names Finalize composed and read; it is
+// excluded from JSON.
 type Config struct {
 	Host            string            `json:"host"`
 	Name            string            `json:"name"`
@@ -87,10 +87,12 @@ func (c *Config) Merge(src *Config) {
 	}
 }
 
-// Finalize applies defaults, applies the environment overrides named by Env,
-// and validates. Name is the one required field; a malformed override fails
-// with an error naming its variable.
-func (c *Config) Finalize() error {
+// Finalize composes the environment override names from envPrefix (an empty
+// prefix disables overrides), applies defaults, applies the overrides, and
+// validates. Name is the one required field; a malformed override fails with
+// an error naming its variable.
+func (c *Config) Finalize(envPrefix string) error {
+	c.Env = NewEnv(envPrefix)
 	c.applyDefaults()
 	if err := c.applyEnv(); err != nil {
 		return err

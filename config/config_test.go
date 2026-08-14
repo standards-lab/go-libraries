@@ -12,7 +12,8 @@ import (
 
 const (
 	envSelector     = "GO_LIBRARIES_CONFIG_TEST_ENV"
-	envHostOverride = "GO_LIBRARIES_CONFIG_TEST_HOST"
+	testPrefix      = "cfgtest"
+	envHostOverride = "CFGTEST_HOST"
 )
 
 type secrets struct {
@@ -26,8 +27,9 @@ func (s *secrets) merge(src *secrets) {
 }
 
 // testConfig is a synthetic configuration exercising the Config contract: a
-// scalar, a scalar with a default, and a nested sub-config. Finalize follows the
-// canonical order — defaults, then environment overrides, then validation.
+// scalar, a scalar with a default, and a nested sub-config. Finalize follows
+// the canonical order — defaults, then environment overrides composed from
+// the prefix, then validation.
 type testConfig struct {
 	Host    string  `json:"host"`
 	Port    int     `json:"port"`
@@ -44,15 +46,17 @@ func (c *testConfig) Merge(src *testConfig) {
 	c.Secrets.merge(&src.Secrets)
 }
 
-func (c *testConfig) Finalize() error {
+func (c *testConfig) Finalize(envPrefix string) error {
 	if c.Host == "" {
 		c.Host = "localhost"
 	}
 	if c.Port == 0 {
 		c.Port = 8080
 	}
-	if v := os.Getenv(envHostOverride); v != "" {
-		c.Host = v
+	if envPrefix != "" {
+		if v := os.Getenv(config.EnvName(envPrefix, "host")); v != "" {
+			c.Host = v
+		}
 	}
 	if c.Port < 0 {
 		return fmt.Errorf("invalid port: %d", c.Port)
@@ -124,12 +128,33 @@ func TestLoad_EnvOverrideWinsLast(t *testing.T) {
 	t.Setenv(envSelector, "prod")
 	t.Setenv(envHostOverride, "from-env")
 
-	cfg, err := config.Load[testConfig](config.Options{Dir: dir, EnvVar: envSelector})
+	cfg, err := config.Load[testConfig](config.Options{
+		Dir:       dir,
+		EnvPrefix: testPrefix,
+		EnvVar:    envSelector,
+	})
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	if cfg.Host != "from-env" {
 		t.Errorf("Host = %q, want from-env (Finalize env override beats every file)", cfg.Host)
+	}
+}
+
+// EnvVar left empty derives from EnvPrefix, so one field wires both the
+// overlay selector and the override names.
+func TestLoad_EnvPrefixDerivesSelector(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "config.json", `{"host":"base"}`)
+	writeFile(t, dir, "config.prod.json", `{"host":"prod"}`)
+	t.Setenv("CFGTEST_ENV", "prod")
+
+	cfg, err := config.Load[testConfig](config.Options{Dir: dir, EnvPrefix: testPrefix})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Host != "prod" {
+		t.Errorf("Host = %q, want prod (selector derived from EnvPrefix)", cfg.Host)
 	}
 }
 

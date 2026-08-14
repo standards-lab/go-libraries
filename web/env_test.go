@@ -26,9 +26,8 @@ func TestNewEnv_ComposesNamesFromPrefix(t *testing.T) {
 	}
 }
 
-func TestNewEnv_EmptyPrefixDropsTheSegment(t *testing.T) {
-	env := web.NewEnv("")
-	if got, want := env.Port, "SERVER_PORT"; got != want {
-		t.Errorf("Port = %q, want %q", got, want)
+func TestNewEnv_EmptyPrefixReturnsZeroEnv(t *testing.T) {
+	if env := web.NewEnv(""); env != (web.Env{}) {
+		t.Errorf("NewEnv(\"\") = %+v, want the zero Env (overrides disabled)", env)
 	}
 }

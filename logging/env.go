@@ -12,6 +12,9 @@ type Env struct {
 // NewEnv composes the standard override names from a prefix: LOG_LEVEL and
 // LOG_FORMAT under whatever prefix [config.EnvName] produces.
 func NewEnv(prefix string) Env {
+	if prefix == "" {
+		return Env{}
+	}
 	return Env{
 		Level: config.EnvName(
 			prefix, "log", "level",

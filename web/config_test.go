@@ -16,42 +16,30 @@ import (
 // assertion because it carries a type element.
 var _ = config.Load[web.Config]
 
+// testPrefix is the env prefix override tests finalize with; the names below
+// are what Finalize composes from it.
 const (
-	envHost              = "GO_LIBRARIES_WEB_TEST_HOST"
-	envPort              = "GO_LIBRARIES_WEB_TEST_PORT"
-	envReadTimeout       = "GO_LIBRARIES_WEB_TEST_READ_TIMEOUT"
-	envReadHeaderTimeout = "GO_LIBRARIES_WEB_TEST_READ_HEADER_TIMEOUT"
-	envWriteTimeout      = "GO_LIBRARIES_WEB_TEST_WRITE_TIMEOUT"
-	envIdleTimeout       = "GO_LIBRARIES_WEB_TEST_IDLE_TIMEOUT"
+	testPrefix           = "test"
+	envHost              = "TEST_SERVER_HOST"
+	envPort              = "TEST_SERVER_PORT"
+	envReadTimeout       = "TEST_SERVER_READ_TIMEOUT"
+	envReadHeaderTimeout = "TEST_SERVER_READ_HEADER_TIMEOUT"
+	envWriteTimeout      = "TEST_SERVER_WRITE_TIMEOUT"
+	envIdleTimeout       = "TEST_SERVER_IDLE_TIMEOUT"
 )
-
-func ptr[T any](v T) *T {
-	return &v
-}
 
 func dur(v time.Duration) *config.Duration {
 	d := config.Duration(v)
 	return &d
 }
 
-func testEnv() web.Env {
-	return web.Env{
-		Host:              envHost,
-		Port:              envPort,
-		ReadTimeout:       envReadTimeout,
-		ReadHeaderTimeout: envReadHeaderTimeout,
-		WriteTimeout:      envWriteTimeout,
-		IdleTimeout:       envIdleTimeout,
-	}
-}
-
 func TestConfig_MergeSourceWinsWithoutClearing(t *testing.T) {
 	base := web.Config{
 		Host:        "base",
-		Port:        ptr(3000),
+		Port:        new(3000),
 		ReadTimeout: dur(time.Minute),
 	}
-	base.Merge(&web.Config{Port: ptr(9000)})
+	base.Merge(&web.Config{Port: new(9000)})
 
 	if base.Host != "base" {
 		t.Errorf("Host = %q, want base (the source omits it and must not clear it)", base.Host)
@@ -66,7 +54,7 @@ func TestConfig_MergeSourceWinsWithoutClearing(t *testing.T) {
 
 func TestConfig_FinalizeAppliesDefaults(t *testing.T) {
 	var cfg web.Config
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 
@@ -98,8 +86,8 @@ func TestConfig_FinalizeEnvOverridesFiles(t *testing.T) {
 	t.Setenv(envPort, "9443")
 	t.Setenv(envReadTimeout, "45s")
 
-	cfg := web.Config{Host: "from-file", Port: ptr(8080), Env: testEnv()}
-	if err := cfg.Finalize(); err != nil {
+	cfg := web.Config{Host: "from-file", Port: new(8080)}
+	if err := cfg.Finalize(testPrefix); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 
@@ -121,8 +109,8 @@ func TestConfig_FinalizeEmptyEnvValueLeavesConfigured(t *testing.T) {
 	// An empty variable reads as unset, not as a request to clear the value.
 	t.Setenv(envReadTimeout, "")
 
-	cfg := web.Config{ReadTimeout: dur(30 * time.Second), Env: testEnv()}
-	if err := cfg.Finalize(); err != nil {
+	cfg := web.Config{ReadTimeout: dur(30 * time.Second)}
+	if err := cfg.Finalize(testPrefix); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 	if time.Duration(*cfg.ReadTimeout) != 30*time.Second {
@@ -130,14 +118,14 @@ func TestConfig_FinalizeEmptyEnvValueLeavesConfigured(t *testing.T) {
 	}
 }
 
-func TestConfig_FinalizeZeroEnvSkipsOverrides(t *testing.T) {
-	// A zero Env names no variables, so nothing in the environment applies —
-	// which is what makes config.Load[web.Config] usable on its own.
+func TestConfig_FinalizeEmptyPrefixSkipsOverrides(t *testing.T) {
+	// An empty prefix composes no variable names, so nothing in the
+	// environment applies — the hermetic form.
 	t.Setenv(envHost, "from-env")
 	t.Setenv(envPort, "9443")
 
 	var cfg web.Config
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 	if cfg.Host != "0.0.0.0" || *cfg.Port != 8080 {
@@ -148,8 +136,8 @@ func TestConfig_FinalizeZeroEnvSkipsOverrides(t *testing.T) {
 func TestConfig_FinalizeMalformedDurationNamesTheVariable(t *testing.T) {
 	t.Setenv(envWriteTimeout, "1hour")
 
-	cfg := web.Config{Env: testEnv()}
-	err := cfg.Finalize()
+	var cfg web.Config
+	err := cfg.Finalize(testPrefix)
 	if err == nil {
 		t.Fatal("Finalize returned nil for a malformed duration override")
 	}
@@ -161,8 +149,8 @@ func TestConfig_FinalizeMalformedDurationNamesTheVariable(t *testing.T) {
 func TestConfig_FinalizeMalformedPortNamesTheVariable(t *testing.T) {
 	t.Setenv(envPort, "http")
 
-	cfg := web.Config{Env: testEnv()}
-	err := cfg.Finalize()
+	var cfg web.Config
+	err := cfg.Finalize(testPrefix)
 	if err == nil {
 		t.Fatal("Finalize returned nil for a malformed port override")
 	}
@@ -172,21 +160,21 @@ func TestConfig_FinalizeMalformedPortNamesTheVariable(t *testing.T) {
 }
 
 func TestConfig_FinalizeRejectsPortOutOfRange(t *testing.T) {
-	cfg := web.Config{Port: ptr(70000)}
-	if err := cfg.Finalize(); err == nil {
+	cfg := web.Config{Port: new(70000)}
+	if err := cfg.Finalize(""); err == nil {
 		t.Fatal("Finalize returned nil for port 70000")
 	}
 }
 
 func TestConfig_FinalizeRejectsNegativeTimeout(t *testing.T) {
 	cfg := web.Config{ReadTimeout: dur(-time.Second)}
-	if err := cfg.Finalize(); err == nil {
+	if err := cfg.Finalize(""); err == nil {
 		t.Fatal("Finalize returned nil for a negative read_timeout")
 	}
 }
 
 func TestConfig_AddrBracketsIPv6(t *testing.T) {
-	cfg := web.Config{Host: "::1", Port: ptr(8080)}
+	cfg := web.Config{Host: "::1", Port: new(8080)}
 	if got, want := cfg.Addr(), "[::1]:8080"; got != want {
 		t.Errorf("Addr() = %q, want %q", got, want)
 	}
@@ -238,8 +226,8 @@ func TestConfig_ZeroTimeoutFromFileSurvivesFinalize(t *testing.T) {
 func TestConfig_ZeroTimeoutFromEnvSurvivesFinalize(t *testing.T) {
 	t.Setenv(envReadTimeout, "0s")
 
-	cfg := web.Config{Env: testEnv()}
-	if err := cfg.Finalize(); err != nil {
+	var cfg web.Config
+	if err := cfg.Finalize(testPrefix); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 
@@ -268,8 +256,8 @@ func TestConfig_ExplicitPortZeroFromFileSurvivesFinalize(t *testing.T) {
 func TestConfig_ExplicitPortZeroFromEnvSurvivesFinalize(t *testing.T) {
 	t.Setenv(envPort, "0")
 
-	cfg := web.Config{Env: testEnv()}
-	if err := cfg.Finalize(); err != nil {
+	var cfg web.Config
+	if err := cfg.Finalize(testPrefix); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 
@@ -281,8 +269,8 @@ func TestConfig_ExplicitPortZeroFromEnvSurvivesFinalize(t *testing.T) {
 func TestConfig_FinalizeRejectsNegativePortFromEnv(t *testing.T) {
 	t.Setenv(envPort, "-1")
 
-	cfg := web.Config{Env: testEnv()}
-	if err := cfg.Finalize(); err == nil {
+	var cfg web.Config
+	if err := cfg.Finalize(testPrefix); err == nil {
 		t.Fatal("Finalize returned nil for port -1 from the environment")
 	}
 }

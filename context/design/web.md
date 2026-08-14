@@ -101,6 +101,29 @@ whether the status came from the application's own failure, and that judgment be
 mapping below, not to the middleware. The duration attribute is a `slog.Duration`, which the JSON handler renders as nanoseconds; a
 `duration_ms` float would suit dashboards better and waits for an observability consumer to ask.
 
+## Route groups and modules
+
+The routing layer is three types — `Group`, `Module`, `Router` — re-derived from the prior reference
+material (ref-go-libraries' module package, exercised by two consumer services) with its catalogued
+flaws corrected. The code and `doc.go` are authoritative for the API; this note holds the decisions.
+
+- **Compose once, at wiring time.** `NewModule` compiles a group tree into full mux patterns with
+  middleware baked in; nothing recomposes per request (the reference rebuilt the middleware chain on
+  every request) and nothing rewrites request paths except `NewHandlerModule`'s stdlib `StripPrefix`
+  (the reference mutated the caller's request). Compile-once creates its own hazard — a route added
+  after compilation would be silently dead — so compiling seals the group and later mutation panics.
+- **One canonical path.** A group becomes servable one way (`NewModule`) and mounts one way
+  (`Router.Mount`); the reference carried a flatten-vs-bridge duality, and its single-level prefix
+  restriction meant `/api/v1` existed only through a workaround. Multi-level prefixes are first-class
+  here.
+- **Probes stay outside the modules structurally.** `Router.Handle` mirrors `ServeMux.Handle` on the
+  router's native fallback mux, satisfying `Mounter`, so `RegisterHealth` mounts the probes beyond
+  every module's middleware: they need no auth exemption because they never pass through a module.
+  Router-level middleware (the request logger) still wraps the whole dispatch.
+- **Registration mistakes panic at wiring time** — a malformed prefix, a duplicate pattern or mount, a
+  sealed-group mutation — mirroring lifecycle's misuse panics: the composition root is written once
+  and runs at boot, so a loud failure there beats a silent one in production.
+
 ## What the HTTP layer still needs
 
 Deferred deliberately, each waiting on a consumer that would validate its API:

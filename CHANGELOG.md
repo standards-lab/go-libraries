@@ -4,13 +4,25 @@ All notable changes to the base library (`github.com/standards-lab/go-libraries`
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). This changelog covers the
 base module only; each provider sub-module keeps its own.
 
-## [v0.4.0-dev.1] - 2026-08-13
+## [v0.4.0] - 2026-08-14
 
-The database capability's connectivity slice, planned with the reference service — the first rung
-of the data composition and CQRS ladder.
+The `web` package gains its routing layer, capability configuration composes its environment
+names from a prefix passed through `Finalize`, and the `database` package with its
+`database/postgres` provider, introduced in `v0.4.0-dev.1`, ships in its first stable version.
+This release includes every `v0.4.0-dev.1` change; that prerelease tag is removed.
 
 ### Added
 
+- **Route groups and modules in `web`**: `Group` declares routes under a path prefix
+  (multi-segment prefixes such as `/api/v1` are first-class) with a middleware stack and nested
+  child groups. `NewModule` compiles a group tree once into a prefix-mounted `Module`: every
+  route registers under its full pattern with its middleware composed, and the tree seals, so
+  mutating a compiled group panics instead of dropping the route silently. `NewHandlerModule`
+  mounts a raw handler under a stripped prefix, for an embedded client application or a file
+  server. `Router` dispatches to mounted modules by longest-prefix match on segment boundaries
+  and falls back to a native `ServeMux`; the fallback satisfies `Mounter`, so `RegisterHealth`'s
+  probes mount outside every module's middleware. Middleware runs router first, then group root
+  to leaf, then route, then handler; nothing recomposes per request.
 - **The `database` package**: the SQL data layer's dialect-neutral core. `database.New` wraps a
   provider-constructed `*sql.DB` with the provider's `Dialect` and a finalized `Config`, applying
   the pool settings; `Start`/`Shutdown` carry the lifecycle hook signature and register as bare
@@ -33,6 +45,13 @@ of the data composition and CQRS ladder.
 
 ### Changed
 
+- **Capability `Finalize` takes the environment prefix** (breaking): the `logging`, `web`, and
+  `database` configs implement `Finalize(envPrefix string) error`, composing their override
+  names through their own `NewEnv` and recording them on `Env`, which callers no longer seed.
+  An empty prefix composes no names, so no overrides apply, and `NewEnv("")` returns the zero
+  `Env`. The `config.Config[T]` constraint carries the new signature; `Load` passes
+  `Options.EnvPrefix` to `Finalize`, and an unset `Options.EnvVar` derives from the prefix as
+  its `env` name, so one field wires the whole load.
 - **`web.Config` hydrates through Go 1.26 `new(expr)` and `config.SetDurationFromEnv`**; its
   private `intPtr`, `durationPtr`, and `setDurationFromEnv` helpers are deleted. A
   `config.Pointer` wrapper was considered and dropped — the toolchain marks such wrappers

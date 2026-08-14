@@ -35,7 +35,7 @@ func recvOrFail[T any](t *testing.T, ch <-chan T, what string) T {
 // Port 0 survives Finalize and means an ephemeral port.
 func finalized(t *testing.T, cfg web.Config) web.Config {
 	t.Helper()
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 	return cfg
@@ -45,7 +45,7 @@ func finalized(t *testing.T, cfg web.Config) web.Config {
 func startTestServer(t *testing.T, handler http.Handler) *web.Server {
 	t.Helper()
 
-	srv := web.NewServer(finalized(t, web.Config{Host: "127.0.0.1", Port: ptr(0)}), handler)
+	srv := web.NewServer(finalized(t, web.Config{Host: "127.0.0.1", Port: new(0)}), handler)
 	if err := srv.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestNewServer_PanicsOnUnfinalizedConfig(t *testing.T) {
 }
 
 func TestServer_AddrBeforeStartIsConfigured(t *testing.T) {
-	srv := web.NewServer(finalized(t, web.Config{Host: "127.0.0.1", Port: ptr(8080)}), http.NewServeMux())
+	srv := web.NewServer(finalized(t, web.Config{Host: "127.0.0.1", Port: new(8080)}), http.NewServeMux())
 	if got, want := srv.Addr(), "127.0.0.1:8080"; got != want {
 		t.Errorf("Addr() = %q, want %q", got, want)
 	}
@@ -131,7 +131,7 @@ func TestServer_StartReportsBindFailure(t *testing.T) {
 		t.Fatalf("parse port %q: %v", port, err)
 	}
 
-	srv := web.NewServer(finalized(t, web.Config{Host: host, Port: ptr(p)}), http.NewServeMux())
+	srv := web.NewServer(finalized(t, web.Config{Host: host, Port: new(p)}), http.NewServeMux())
 	err = srv.Start(context.Background())
 	if err == nil {
 		t.Fatal("Start returned nil for an occupied port")
@@ -233,7 +233,7 @@ func TestServer_ShutdownBeforeStartLeavesServerUsable(t *testing.T) {
 	mux.HandleFunc("GET /ping", func(w http.ResponseWriter, _ *http.Request) {
 		_ = web.WriteJSON(w, http.StatusOK, map[string]string{"status": "pong"})
 	})
-	srv := web.NewServer(finalized(t, web.Config{Host: "127.0.0.1", Port: ptr(0)}), mux)
+	srv := web.NewServer(finalized(t, web.Config{Host: "127.0.0.1", Port: new(0)}), mux)
 
 	ctx, cancel := context.WithTimeout(context.Background(), failsafe)
 	defer cancel()
@@ -265,7 +265,7 @@ func TestServer_ShutdownBeforeStartLeavesServerUsable(t *testing.T) {
 func TestServer_WiresReadHeaderTimeoutFromConfig(t *testing.T) {
 	cfg := finalized(t, web.Config{
 		Host:              "127.0.0.1",
-		Port:              ptr(0),
+		Port:              new(0),
 		ReadHeaderTimeout: dur(100 * time.Millisecond),
 	})
 	srv := web.NewServer(cfg, http.NewServeMux())
