@@ -22,9 +22,8 @@ func TestNewEnv_ComposesNamesFromPrefix(t *testing.T) {
 	}
 }
 
-func TestNewEnv_EmptyPrefixDropsTheSegment(t *testing.T) {
-	env := logging.NewEnv("")
-	if got, want := env.Level, "LOG_LEVEL"; got != want {
-		t.Errorf("Level = %q, want %q", got, want)
+func TestNewEnv_EmptyPrefixReturnsZeroEnv(t *testing.T) {
+	if env := logging.NewEnv(""); env != (logging.Env{}) {
+		t.Errorf("NewEnv(\"\") = %+v, want the zero Env (overrides disabled)", env)
 	}
 }

@@ -55,8 +55,9 @@
 // survives the load and means what it says. Port defaults in the provider,
 // User and Password stay optional (requiredness varies by provider and auth
 // mode), and Options passes dialect-specific connection keys through to the
-// provider. [NewEnv] composes the standard override names from a prefix; a
-// zero [Env] means no environment overrides at all.
+// provider. Finalize composes the standard override names from the prefix it
+// receives (via [NewEnv], recorded on [Env] for introspection); an empty
+// prefix disables the overrides.
 //
 // # Errors
 //

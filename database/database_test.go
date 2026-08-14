@@ -69,7 +69,7 @@ func (stubDialect) MapError(err error) error { return err }
 func finalizedConfig(t *testing.T) database.Config {
 	t.Helper()
 	cfg := database.Config{Name: "app"}
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Fatalf("finalize config: %v", err)
 	}
 	return cfg
@@ -123,7 +123,7 @@ func TestNew_PanicsOnNilDialect(t *testing.T) {
 
 func TestNew_AppliesPoolSettings(t *testing.T) {
 	cfg := database.Config{Name: "app", MaxOpenConns: new(42)}
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Fatalf("finalize config: %v", err)
 	}
 

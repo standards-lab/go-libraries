@@ -17,20 +17,24 @@ const (
 
 // Config is the contract a configuration type's pointer implements to take
 // part in [Load]: Merge overlays another instance's set fields onto the
-// receiver, and Finalize applies defaults, reads environment-variable
-// overrides, and validates.
+// receiver, and Finalize composes its environment override names from the
+// prefix, applies defaults, reads the overrides, and validates.
 type Config[T any] interface {
 	*T
 	Merge(src *T)
-	Finalize() error
+	Finalize(envPrefix string) error
 }
 
 // Options locates and names the files [Load] reads. The zero value reads
-// config.json and secrets.json from the current directory with no environment
-// overlays.
+// config.json and secrets.json from the current directory, with no
+// environment overlays and no environment overrides.
 type Options struct {
 	// Dir is the directory the files are read from; "." when empty.
 	Dir string
+	// EnvPrefix is the prefix the loaded configuration's Finalize composes
+	// its environment-variable names from; empty disables environment
+	// overrides.
+	EnvPrefix string
 	// EnvVar names the environment variable whose value selects the overlay
 	// environment. Empty, or naming an unset variable, skips both overlays.
 	EnvVar string
@@ -46,6 +50,9 @@ type Options struct {
 func (o *Options) withDefaults() {
 	if o.Dir == "" {
 		o.Dir = "."
+	}
+	if o.EnvVar == "" && o.EnvPrefix != "" {
+		o.EnvVar = EnvName(o.EnvPrefix, "env")
 	}
 	if o.BaseName == "" {
 		o.BaseName = defaultBaseName
@@ -113,7 +120,7 @@ func Load[T any, PT Config[T]](opts Options) (PT, error) {
 		cfg.Merge(layer)
 	}
 
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(opts.EnvPrefix); err != nil {
 		return nil, fmt.Errorf("finalize config: %w", err)
 	}
 	return cfg, nil

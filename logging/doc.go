@@ -5,13 +5,13 @@
 //
 // [Config] holds a [Level] and a [Format] and implements the config package's
 // Merge and Finalize contract, so it loads as part of an application's
-// configuration rather than on its own. Finalize normalizes (trims and
-// lower-cases), applies defaults (info, text), reads the environment overrides
-// named by the configuration's [Env] value, normalizes again, and validates. A
-// value from a file or a shell therefore validates identically in any casing,
-// and a blank or whitespace-only value takes the default. [NewEnv] composes the
-// standard names from a prefix; an empty name disables that one override, and a
-// zero Env means no environment overrides at all.
+// configuration rather than on its own. Finalize composes its environment
+// override names from the prefix it receives (via [NewEnv], recorded on [Env]
+// for introspection), normalizes (trims and lower-cases), applies defaults
+// (info, text), reads the overrides, normalizes again, and validates. A value
+// from a file or a shell therefore validates identically in any casing, and a
+// blank or whitespace-only value takes the default. An empty prefix composes
+// no names, disabling the overrides.
 //
 // [Level] is a string. slog.Level parses it — "debug", "INFO", and offsets such
 // as "warn+2", case-insensitively — through [Level.Slog]. An empty Level is

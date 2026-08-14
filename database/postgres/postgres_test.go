@@ -12,7 +12,7 @@ import (
 func finalizedConfig(t *testing.T) database.Config {
 	t.Helper()
 	cfg := database.Config{Name: "app", User: "app"}
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Fatalf("finalize config: %v", err)
 	}
 	return cfg
@@ -33,7 +33,7 @@ func TestNew_ConstructsWithoutIO(t *testing.T) {
 
 func TestNew_EmptyUserFallsBackToDriver(t *testing.T) {
 	cfg := database.Config{Name: "app"}
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Fatalf("finalize config: %v", err)
 	}
 
@@ -52,7 +52,7 @@ func TestNew_PasswordNeverEntersTheURL(t *testing.T) {
 		User:     "app",
 		Password: `sp ace:sl/ash@at?q&amp'quote`,
 	}
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Fatalf("finalize config: %v", err)
 	}
 
@@ -75,7 +75,7 @@ func TestNew_RejectsReservedOptions(t *testing.T) {
 				Name:    "app",
 				Options: map[string]string{key: "x"},
 			}
-			if err := cfg.Finalize(); err != nil {
+			if err := cfg.Finalize(""); err != nil {
 				t.Fatalf("finalize config: %v", err)
 			}
 
@@ -95,7 +95,7 @@ func TestNew_RejectsUnparseableOptions(t *testing.T) {
 		Name:    "app",
 		Options: map[string]string{"sslmode": "bogus"},
 	}
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Fatalf("finalize config: %v", err)
 	}
 

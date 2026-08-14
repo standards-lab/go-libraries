@@ -33,3 +33,9 @@ func TestNewEnv(t *testing.T) {
 		}
 	}
 }
+
+func TestNewEnv_EmptyPrefixReturnsZeroEnv(t *testing.T) {
+	if env := database.NewEnv(""); env != (database.Env{}) {
+		t.Errorf("NewEnv(\"\") = %+v, want the zero Env (overrides disabled)", env)
+	}
+}

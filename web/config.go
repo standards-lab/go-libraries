@@ -22,8 +22,8 @@ const (
 // Config holds the server's address and timeouts. The port and timeouts are
 // tri-state pointers: nil is unset and takes the default, while an explicit
 // zero survives the load and means what it says — a disabled timeout, or an
-// ephemeral port. Env names the environment variables Finalize reads; it is
-// excluded from JSON, so only the composition root can set it.
+// ephemeral port. Env records the environment-variable names Finalize
+// composed and read; it is excluded from JSON.
 type Config struct {
 	Host              string           `json:"host"`
 	Port              *int             `json:"port"`
@@ -65,9 +65,11 @@ func (c *Config) Merge(src *Config) {
 	}
 }
 
-// Finalize applies defaults, applies the environment overrides named by Env,
-// and validates.
-func (c *Config) Finalize() error {
+// Finalize composes the environment override names from envPrefix (an empty
+// prefix disables overrides), applies defaults, applies the overrides, and
+// validates.
+func (c *Config) Finalize(envPrefix string) error {
+	c.Env = NewEnv(envPrefix)
 	c.applyDefaults()
 	if err := c.applyEnv(); err != nil {
 		return err

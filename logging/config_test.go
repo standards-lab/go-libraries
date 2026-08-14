@@ -15,14 +15,13 @@ import (
 // interface assertion because it carries a type element.
 var _ = config.Load[logging.Config]
 
+// testPrefix is the env prefix override tests finalize with; the names below
+// are what Finalize composes from it.
 const (
-	envLevel  = "GO_LIBRARIES_LOGGING_TEST_LEVEL"
-	envFormat = "GO_LIBRARIES_LOGGING_TEST_FORMAT"
+	testPrefix = "test"
+	envLevel   = "TEST_LOG_LEVEL"
+	envFormat  = "TEST_LOG_FORMAT"
 )
-
-func testEnv() logging.Env {
-	return logging.Env{Level: envLevel, Format: envFormat}
-}
 
 func TestConfig_MergeSourceWinsWithoutClearing(t *testing.T) {
 	base := logging.Config{Level: logging.LevelDebug, Format: logging.FormatText}
@@ -50,7 +49,7 @@ func TestConfig_MergeInfoIsDistinguishableFromUnset(t *testing.T) {
 
 func TestConfig_FinalizeAppliesDefaults(t *testing.T) {
 	var cfg logging.Config
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 
@@ -64,7 +63,7 @@ func TestConfig_FinalizeAppliesDefaults(t *testing.T) {
 
 func TestConfig_FinalizeWhitespaceOnlyTakesDefaults(t *testing.T) {
 	cfg := logging.Config{Level: "   ", Format: "   "}
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 
@@ -79,8 +78,8 @@ func TestConfig_FinalizeWhitespaceOnlyTakesDefaults(t *testing.T) {
 func TestConfig_FinalizeNormalizesEnvLevel(t *testing.T) {
 	t.Setenv(envLevel, " INFO ")
 
-	cfg := logging.Config{Level: logging.LevelDebug, Env: testEnv()}
-	if err := cfg.Finalize(); err != nil {
+	cfg := logging.Config{Level: logging.LevelDebug}
+	if err := cfg.Finalize(testPrefix); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 	if cfg.Level != logging.LevelInfo {
@@ -92,8 +91,8 @@ func TestConfig_FinalizeEnvOverridesFiles(t *testing.T) {
 	t.Setenv(envLevel, "error")
 	t.Setenv(envFormat, "json")
 
-	cfg := logging.Config{Level: logging.LevelDebug, Format: logging.FormatText, Env: testEnv()}
-	if err := cfg.Finalize(); err != nil {
+	cfg := logging.Config{Level: logging.LevelDebug, Format: logging.FormatText}
+	if err := cfg.Finalize(testPrefix); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 
@@ -111,8 +110,8 @@ func TestConfig_FinalizeNormalizesCasingAndSpace(t *testing.T) {
 	t.Setenv(envLevel, "  WARN  ")
 	t.Setenv(envFormat, "JSON")
 
-	cfg := logging.Config{Env: testEnv()}
-	if err := cfg.Finalize(); err != nil {
+	var cfg logging.Config
+	if err := cfg.Finalize(testPrefix); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 
@@ -128,8 +127,8 @@ func TestConfig_FinalizeEmptyEnvValueLeavesConfigured(t *testing.T) {
 	// An empty variable reads as unset, not as a request to clear the value.
 	t.Setenv(envLevel, "")
 
-	cfg := logging.Config{Level: logging.LevelError, Env: testEnv()}
-	if err := cfg.Finalize(); err != nil {
+	cfg := logging.Config{Level: logging.LevelError}
+	if err := cfg.Finalize(testPrefix); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 	if cfg.Level != logging.LevelError {
@@ -137,14 +136,14 @@ func TestConfig_FinalizeEmptyEnvValueLeavesConfigured(t *testing.T) {
 	}
 }
 
-func TestConfig_FinalizeZeroEnvSkipsOverrides(t *testing.T) {
-	// A zero Env names no variables, so nothing in the environment applies —
-	// which is what makes config.Load[logging.Config] usable on its own.
+func TestConfig_FinalizeEmptyPrefixSkipsOverrides(t *testing.T) {
+	// An empty prefix composes no variable names, so nothing in the
+	// environment applies — the hermetic form.
 	t.Setenv(envLevel, "error")
 	t.Setenv(envFormat, "json")
 
 	var cfg logging.Config
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 	if cfg.Level != logging.LevelInfo || cfg.Format != logging.FormatText {
@@ -154,7 +153,7 @@ func TestConfig_FinalizeZeroEnvSkipsOverrides(t *testing.T) {
 
 func TestConfig_FinalizeRejectsUnknownLevel(t *testing.T) {
 	cfg := logging.Config{Level: "trace"}
-	err := cfg.Finalize()
+	err := cfg.Finalize("")
 	if err == nil {
 		t.Fatal("Finalize returned nil for an unknown level")
 	}
@@ -165,7 +164,7 @@ func TestConfig_FinalizeRejectsUnknownLevel(t *testing.T) {
 
 func TestConfig_FinalizeRejectsUnknownFormat(t *testing.T) {
 	cfg := logging.Config{Format: "yaml"}
-	err := cfg.Finalize()
+	err := cfg.Finalize("")
 	if err == nil {
 		t.Fatal("Finalize returned nil for an unknown format")
 	}
@@ -178,8 +177,8 @@ func TestConfig_FinalizeRejectsUnknownFormat(t *testing.T) {
 func TestConfig_FinalizeRejectsMalformedEnvValue(t *testing.T) {
 	t.Setenv(envLevel, "nonsense")
 
-	cfg := logging.Config{Env: testEnv()}
-	if err := cfg.Finalize(); err == nil {
+	var cfg logging.Config
+	if err := cfg.Finalize(testPrefix); err == nil {
 		t.Fatal("Finalize returned nil for a malformed level override")
 	}
 }

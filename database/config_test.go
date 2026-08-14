@@ -77,7 +77,7 @@ func TestConfig_MergeOptionsOntoNilMap(t *testing.T) {
 
 func TestConfig_FinalizeDefaults(t *testing.T) {
 	cfg := validConfig()
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 
@@ -107,7 +107,7 @@ func TestConfig_FinalizeDefaults(t *testing.T) {
 
 func TestConfig_FinalizeRequiresName(t *testing.T) {
 	cfg := database.Config{User: "app"}
-	err := cfg.Finalize()
+	err := cfg.Finalize("")
 	if err == nil {
 		t.Fatal("Finalize accepted a config with no database name")
 	}
@@ -118,14 +118,13 @@ func TestConfig_FinalizeRequiresName(t *testing.T) {
 
 func TestConfig_FinalizeUserOptional(t *testing.T) {
 	cfg := validConfig()
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Errorf("Finalize rejected an empty user: %v", err)
 	}
 }
 
 func TestConfig_FinalizeEnvOverrides(t *testing.T) {
 	cfg := validConfig()
-	cfg.Env = database.NewEnv("test")
 
 	t.Setenv("TEST_DATABASE_HOST", "db.internal")
 	t.Setenv("TEST_DATABASE_PORT", "5433")
@@ -138,7 +137,7 @@ func TestConfig_FinalizeEnvOverrides(t *testing.T) {
 	t.Setenv("TEST_DATABASE_CONN_MAX_IDLE_TIME", "10m")
 	t.Setenv("TEST_DATABASE_CONN_TIMEOUT", "3s")
 
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize("test"); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 
@@ -188,10 +187,9 @@ func TestConfig_FinalizeMalformedEnvFails(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := validConfig()
-			cfg.Env = database.NewEnv("test")
 			t.Setenv(tc.set, tc.value)
 
-			err := cfg.Finalize()
+			err := cfg.Finalize("test")
 			if err == nil {
 				t.Fatalf("Finalize accepted %s=%q", tc.set, tc.value)
 			}
@@ -207,7 +205,7 @@ func TestConfig_FinalizeZeroEnvDisablesOverrides(t *testing.T) {
 	t.Setenv("TEST_DATABASE_HOST", "db.internal")
 
 	cfg := validConfig()
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 	if cfg.Host != "localhost" {
@@ -276,7 +274,7 @@ func TestConfig_Validate(t *testing.T) {
 			cfg := validConfig()
 			tc.mutate(&cfg)
 
-			err := cfg.Finalize()
+			err := cfg.Finalize("")
 			if err == nil {
 				t.Fatal("Finalize accepted an invalid config")
 			}
@@ -294,7 +292,7 @@ func TestConfig_ValidateAllowsZeroPools(t *testing.T) {
 	cfg.MaxOpenConns = new(0)
 	cfg.MaxIdleConns = new(0)
 
-	if err := cfg.Finalize(); err != nil {
+	if err := cfg.Finalize(""); err != nil {
 		t.Errorf("Finalize rejected zero pool settings: %v", err)
 	}
 }

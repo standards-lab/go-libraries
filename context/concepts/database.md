@@ -36,7 +36,7 @@ candidate direction; each build session settles its slice's API in plan mode.
 ## Releases
 
 The dev-release discipline from `documented-layers` applies across the effort. Each rung's merge
-cuts prerelease tags — `v0.4.0-dev.N` for the base, `database/postgres/v0.1.0-dev.N` (and later
+cuts prerelease tags — `v0.5.0-dev.N` for the base, `database/postgres/v0.2.0-dev.N` (and later
 `database/migrate/v0.1.0-dev.N`) for the sub-modules — so the reference service's CI resolves the
 packages while the surface is still in flux; prerelease tags resolve through the proxy and are
 never selected by `@latest`. The provider's transient `replace` stays until the minor release —
@@ -45,11 +45,15 @@ against the repos on disk — but each provider dev tag bumps its `require` to t
 dev tag, because consumers read only the require. Changelog entries land under their dev
 version's dated heading; the semantic release aggregates the `-dev.N` sections into one and culls
 them with the purged tags.
-`v0.4.0` and the sub-modules' `v0.1.0` are cut once the full data and CQRS effort closes (all
-seven rungs, the surface proven by three domains and the branch-domain composition), paired with
-the reference service's own `v0.1.0` and a template patch re-pinning to `v0.4.0`; the
-coordinator's release sweep covers the set, and the dev tags purge at the release. CHANGELOG
-headings stay pinned to the anticipated versions, dated when actually released.
+`v0.4.0` shipped mid-effort (2026-08-14, the infrastructure-composition session) with the web
+routing layer and the validated rung-1 database surface, so the template could release on a
+stable base; `database/postgres/v0.1.0` paired with it, and the `v0.4.0-dev.*` tags purged.
+The remaining effort closes at `v0.5.0` — cut with `database/postgres/v0.2.0`,
+`database/migrate/v0.1.0`, the reference service's own `v0.1.0`, and a template patch
+re-pinning to `v0.5.0`, once all seven rungs close and the surface is proven by three domains
+and the branch-domain composition. The coordinator's release sweep covers each release set, and
+dev tags purge at their semantic release. CHANGELOG headings stay pinned to the anticipated
+versions, dated when actually released.
 
 ## Open questions (settled per build session, in plan mode)
 
