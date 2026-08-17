@@ -10,10 +10,15 @@ live here.
 ## What we're building toward
 
 - The lowest practical level of abstraction, no frameworks by default. Dependencies flow downward only;
-  interfaces are defined where they are consumed.
-- Within a capability, implementations are providers selected by configuration: a self-hosted provider
-  alongside managed ones behind one interface. The interface is a package in the base library; each
-  provider is a nested sub-module that pins its own SDK and is selected by the consumer at compile time.
+  interfaces are defined where they are consumed. A consumer interfaces with a technology at the
+  resolution its purpose requires, and the provider's own API stays reachable through the handle the
+  capability exposes.
+- Every capability presents two tiers: a standard tier that is exactly the technology's common standard,
+  as a package in the base library, and the provider's native API, in a nested sub-module that pins its
+  own SDK. A provider is one implementation of one target API, self-hosted or managed by configuration;
+  the consumer selects it by typed construction at compile time and imports it only from its composition
+  root and the packages that declare native use. Each capability declares what a provider swap costs. See
+  `design/conventions.md`.
 - A single base library, versioned and released as one artifact, plus provider sub-modules released
   independently.
 
@@ -42,22 +47,32 @@ Base library packages:
 - **logging** — the `*slog.Logger` a process writes through, built from a configuration that takes part in
   the layered load. It constructs a logger and nothing more: the level vocabulary is `slog`'s, and the
   HTTP request logger belongs to `web`. See `design/logging.md`.
-- **auth** — authentication behind `Authenticator`/`TokenSource` interfaces, with providers (a
-  self-hosted Keycloak provider alongside managed ones) as nested sub-modules. Authorization (ABAC/RBAC)
-  as an in-package `auth/authz`.
-- **database** — SQL data access behind the `database.DB` interface, with a persistence query vocabulary;
-  drivers (postgres, sql server) as nested provider sub-modules.
-- **storage** — object storage behind the `storage.Store` interface; providers per API family (an S3-API
-  provider, an Azure Blob provider) as nested sub-modules, each serving a local emulator or a managed
-  cloud by configuration.
-- **web** — the HTTP layer: a stdlib `net/http` server, RFC 9457 problem responses, a success envelope,
-  middleware, liveness/readiness (`/healthz`, `/readyz`, where `/readyz` reports the `lifecycle`
-  readiness signal), and the authorization enforcement point.
+- **auth** — authentication behind `Authenticator`/`TokenSource` interfaces; the standard tier is OAuth
+  2.0, OpenID Connect, and JWT, with providers (Keycloak, Entra) as nested sub-modules, each usable
+  locally or managed. Token verification is interchangeable; what a token's claims contain is
+  interchangeable with review. Authorization (ABAC/RBAC) as an in-package `auth/authz`.
+- **database** — SQL data access: the `database.DB` wrapper, the dialect interface, and a persistence
+  query vocabulary in the base, with the standard tier ISO/IEC 9075 and drivers as nested provider
+  sub-modules — `database/postgres` built, a second engine when a proof or a consumer earns it. Schema-
+  bearing: what changes on a provider swap is the consumer's schema, migrations, and domain SQL, never
+  the composition root. See `concepts/database.md` while it is being built.
+- **storage** — object storage behind the `storage.Store` interface; no formal standard exists, so the
+  standard tier is the minimal operation set common to the target APIs, with providers per API family (an
+  S3-API provider, an Azure Blob provider) as nested sub-modules, each serving a local emulator or a
+  managed cloud by configuration. Those operations are interchangeable; consistency is interchangeable
+  with review.
+- **web** — the HTTP layer, its standard tier RFC 9110 and RFC 9457 over the stdlib `net/http` transport,
+  with no providers: a server, problem responses, a success envelope, middleware, liveness/readiness
+  (`/healthz`, `/readyz`, where `/readyz` reports the `lifecycle` readiness signal), and the
+  authorization enforcement point.
+- **observability** — logs, metrics, and traces across the stack, with OpenTelemetry as the standard
+  tier; exporters as providers. Unbuilt; `logging` covers the `*slog.Logger` until then.
 
 The set is provisional, not a commitment — see `concepts/module-set.md`. Each capability is settled when
-it is built. `lifecycle`, `config`, `logging`, and a `web` with the bootstrap, the health endpoints, and
-the middleware chain are in; the remaining capabilities follow as they are reached, and providers are
-scaffolded only when built.
+it is built. `lifecycle`, `config`, `logging`, `database` with its Postgres provider and `database/seed`,
+and a `web` with the bootstrap, the routing layer, the health endpoints, and the middleware chain are in;
+the remaining capabilities follow as they are reached, and providers are scaffolded only when built — one
+per capability by default, a second when a proof or a consumer earns it, never a matrix.
 
 ## How this repository works
 
@@ -65,6 +80,7 @@ scaffolded only when built.
   and tag conventions. See `design/library-topology-and-naming.md`.
 - **Releases and CI** — the base library's root tags and each provider's prefix tags, the matrix CI, the
   `go.work` and `mise` workflow. See `design/release-and-ci.md`.
-- **Module conventions** — interface-in-a-base-package with vendor-in-sub-module, the near-stdlib base,
-  providers selected by typed construction, co-located black-box tests, doc.go ownership. See
-  `design/conventions.md`.
+- **Module conventions** — the standard and native tiers, interface-in-a-base-package with
+  vendor-in-sub-module, the near-stdlib base, the import boundary, providers selected by typed
+  construction, provider-swap classes, the dialect interface's growth rule, co-located black-box tests,
+  doc.go ownership. See `design/conventions.md`.

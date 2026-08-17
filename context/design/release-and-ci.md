@@ -61,7 +61,9 @@ normal Go proxy and checksum database; CI carries no `GOPRIVATE` or `.netrc` con
 The CI matrix, the `go.work` use-list, and `mise`'s `GO_MODULES` are three lists that name the same
 modules — the base module (`.`) and each provider sub-module — and are updated together whenever a module
 is added. Each matrix entry's steps are guarded on the module's `go.mod`, so an entry stays green until
-that module lands.
+that module lands. That is what makes a second provider cheap to add: three list entries and a directory.
+The import boundary that confines provider imports is a consumer-side check and runs in consumers, not
+here; inside this repository the module topology already keeps the base from importing a provider.
 
 ## Tasks
 

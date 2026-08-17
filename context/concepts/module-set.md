@@ -10,9 +10,8 @@ The repository is a single base library (one module at the repository root) whos
 packages, plus provider sub-modules that carry the heavy SDKs. Rationale over a module-per-capability
 layout: every base concern here is near-stdlib, so folding them into one released artifact collapses the
 inter-package release ripple to zero while keeping provider isolation where the dependency weight actually
-lives. This softens the org's "library is the unit of reuse" line in letter (one module holds all
-capability packages) but holds it in spirit (importing one capability compiles no other and pulls no
-vendor SDK) — worth a possible follow-up to the org-level context.
+lives. The unit of reuse is still one capability: importing one capability compiles no other and pulls
+no vendor SDK.
 
 ## Base library packages
 
@@ -23,8 +22,10 @@ vendor SDK) — worth a possible follow-up to the org-level context.
 - **auth** — `Authenticator`/`TokenSource` behavior interfaces; providers (Keycloak self-hosted, Entra
   and others managed) as nested sub-modules. Authorization (RBAC/ABAC) as an in-package `auth/authz`,
   with the enforcement point in `web`.
-- **database** — the `database.DB` interface plus a persistence query vocabulary; SQL drivers (postgres,
-  mssql) as nested sub-modules.
+- **database** — built (`database/`, `database/seed`, and the `database/postgres` provider); the code and
+  its `doc.go` files are authoritative. The standard tier is ISO/IEC 9075; the persistence query
+  vocabulary is under way. Further engines (sqlite, mssql) as nested sub-modules when a proof or a
+  consumer earns them. Direction in `concepts/database.md`.
 - **storage** — the `storage.Store` interface; providers per API family (S3, Azure Blob) as nested
   sub-modules.
 - **logging** — built (`logging/`); the code and its `doc.go` are authoritative for the package API.
@@ -57,7 +58,8 @@ without one.)
 - **Pagination decomposes by layer.** The baseline's shared `core/pagination` mixed a wire type (json
   tags, string parsing) into the driver-neutral query builder. Instead, `database` owns a pure
   persistence query vocabulary (page + sort as plain directives) and `web` owns the HTTP query-param
-  parsing and JSON page-response envelope; the service translates at the seam.
+  parsing and JSON page-response envelope; the service translates at the seam. The SQL a page directive
+  renders to is the standard form, not dialect-dispatched, so nothing an engine does reaches `web`.
 - **Capability interfaces named per package.** No forced uniform noun (the baseline's `database.System`
   read awkwardly, and `auth` is not one encapsulated interface). `database.DB` keeps the package name
   `database` (renaming to `sql` would collide with stdlib `database/sql`); `storage.Store`; `auth` keeps
@@ -65,9 +67,11 @@ without one.)
 
 ## Open questions to settle as each capability is built
 
-- The exact members of `database.DB` and `storage.Store` (lifecycle and access methods).
+- The exact members of `storage.Store`: the operations the target APIs share are the standard tier this
+  library establishes for object storage; everything else stays native.
 - The persistence query vocabulary (`database`) and the HTTP page-response contract (`web`).
-- Final storage provider API choices, and whether both the S3 and Azure Blob families are demonstrated.
+- Final storage provider API choices. One family by default; the second only when a proof or a consumer
+  earns it.
 - The structure of `web`'s success envelope. Problem responses and the middleware chain are settled
   (`design/web.md`); the envelope waits for a domain handler.
 - Whether middleware earns a package of its own, and when — see `concepts/middleware-split.md`.
