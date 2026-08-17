@@ -57,13 +57,18 @@ receiving traffic before its shutdown hooks run.
 
 ## The library defines no problem types
 
+The package's standard tier is RFC 9110 and RFC 9457 over the stdlib transport, and it has no providers:
+nothing changes on a provider swap because there is nothing to swap. The problem writers are the clearest
+case of staying inside the standard.
+
 RFC 9457's `type` is the problem's identity — the member a client branches on, with `title` advisory and
 `status` an advisory copy. A type URI therefore names an *application's* vocabulary, and a library that
 mints one is claiming semantics it does not own. So every problem `web` emits is `about:blank`, which has
 the defined meaning "no semantics beyond the HTTP status code", and consumers bring their own URIs
 through `Problem.Write` or the extras map.
 
-The trade-off this accepts: `/readyz` attaches a `checks` extension member to an `about:blank` problem,
+The trade-off this accepts: `/readyz` attaches a `checks` extension member (RFC 9457's term) to an
+`about:blank` problem,
 and RFC 9457 means extension members to be defined by the problem type. If a consumer needs readiness
 failures under its own vocabulary, the answer is a type hook on `Readiness`, not a library-owned URI —
 deferred until something asks for it.
@@ -132,7 +137,9 @@ Deferred deliberately, each waiting on a consumer that would validate its API:
   browser client; a recovery handler and a request ID wait for a service to need them.
 - **Error mapping** — the domain-error-to-status matchers that turn a returned error into a problem
   response. Additive to the problem writers; needs a domain handler to exercise it.
-- **The success envelope and the page response** — the JSON structure a handler returns on success, and the
-  HTTP-side pagination that pairs with `database`'s query vocabulary.
+- **The success envelope and the page response** — the JSON structure a handler returns on success, and
+  the HTTP-side pagination that pairs with `database`'s query vocabulary. The page contract carries no
+  engine detail: the query builder renders paging in the standard SQL form, so nothing a dialect does
+  reaches the HTTP side.
 
 None of these revise the current API; all of them add to it.
